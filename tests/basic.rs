@@ -38,11 +38,11 @@ fn test_basic() {
 
     assert_eq!(struct_bldr.columns.len(), 6);
     let result = struct_bldr.build();
-    //println!("final:\n{}", &result);
+    println!("final:\n{}", &result);
     assert_eq!(
         result.replace([' ', '\r', '\n'], ""),
         r#"pub struct Accounts {
-    user_id: i64,
+    user_id: i32,
     username: String,
     password: String,
     email: String,
