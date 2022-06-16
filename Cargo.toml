@@ -5,10 +5,15 @@ edition = "2021"
 
 [dependencies]
 postgres-types = { version = "0.2.3", features = ["derive"] }
+postgres = { version = "0.19.3", optional = true }
 time = { version = "0.3.9", features = ["parsing"] }
 indexmap = { version = "1.8.2" }
 thiserror = "1.0.31"
+anyhow = "*"
 heck = "0.4.0"
 
 [dev-dependencies]
-postgres = { version = "0.19.3" }
+
+
+[features]
+default = ["postgres", ]

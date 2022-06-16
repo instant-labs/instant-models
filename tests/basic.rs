@@ -27,15 +27,8 @@ fn test_basic() {
         )
         .unwrap();
 
-    let mut struct_bldr = StructBuilder::new(TABLE_NAME.into());
-    for row in client.query("SELECT column_name, is_nullable, data_type FROM information_schema.columns WHERE table_name = $1;", &[&TABLE_NAME]).unwrap() {
-        let column_name: &str = row.get(0);
-        let is_nullable: &str = row.get(1);
-        let data_type: &str = row.get(2);
-        let col = Column::new(column_name.to_string().into(), Type::from_str(data_type).unwrap()).set_null(is_nullable == "YES");
-        struct_bldr.add_column(col);
-    }
 
+    let struct_bldr = new_struct_builder(client, TABLE_NAME).unwrap();
     assert_eq!(struct_bldr.columns.len(), 6);
     let result = struct_bldr.build_type();
     println!("final:\n{}", &result);
