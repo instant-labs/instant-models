@@ -1,8 +1,11 @@
-use super::*;
+use crate::StructBuilder;
+use heck::AsUpperCamelCase;
+use postgres_types::Type as PgType;
+use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
 pub enum Type {
-    Builtin { inner: postgres_types::Type },
+    Builtin { inner: PgType },
     Composite { inner: StructBuilder },
 }
 
@@ -11,16 +14,16 @@ impl FromStr for Type {
     fn from_str(val: &str) -> Result<Self, Self::Err> {
         Ok(Self::Builtin {
             inner: match val {
-                "bigint" => postgres_types::Type::INT8,
-                "integer" => postgres_types::Type::INT4,
-                "text" => postgres_types::Type::TEXT,
-                "text[]" => postgres_types::Type::TEXT_ARRAY,
-                "bytea" => postgres_types::Type::BYTEA,
-                "bytea[]" => postgres_types::Type::BYTEA_ARRAY,
-                "boolean" => postgres_types::Type::BOOL,
-                "character varying" => postgres_types::Type::TEXT,
-                "timestamp with time zone" => postgres_types::Type::TIMESTAMPTZ,
-                "timestamp without time zone" => postgres_types::Type::TIMESTAMP,
+                "bigint" => PgType::INT8,
+                "integer" => PgType::INT4,
+                "text" => PgType::TEXT,
+                "text[]" => PgType::TEXT_ARRAY,
+                "bytea" => PgType::BYTEA,
+                "bytea[]" => PgType::BYTEA_ARRAY,
+                "boolean" => PgType::BOOL,
+                "character varying" => PgType::TEXT,
+                "timestamp with time zone" => PgType::TIMESTAMPTZ,
+                "timestamp without time zone" => PgType::TIMESTAMP,
                 _ => todo!(),
             },
         })
@@ -31,31 +34,31 @@ impl std::fmt::Display for Type {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Builtin {
-                inner: postgres_types::Type::INT8,
+                inner: PgType::INT8,
             } => write!(fmt, "i64"),
             Self::Builtin {
-                inner: postgres_types::Type::INT4,
+                inner: PgType::INT4,
             } => write!(fmt, "i32"),
             Self::Builtin {
-                inner: postgres_types::Type::TEXT,
+                inner: PgType::TEXT,
             } => write!(fmt, "String"),
             Self::Builtin {
-                inner: postgres_types::Type::TEXT_ARRAY,
+                inner: PgType::TEXT_ARRAY,
             } => write!(fmt, "Vec<String>"),
             Self::Builtin {
-                inner: postgres_types::Type::BYTEA,
+                inner: PgType::BYTEA,
             } => write!(fmt, "Vec<u8>"),
             Self::Builtin {
-                inner: postgres_types::Type::BYTEA_ARRAY,
+                inner: PgType::BYTEA_ARRAY,
             } => write!(fmt, "Vec<Vec<u8>>"),
             Self::Builtin {
-                inner: postgres_types::Type::BOOL,
+                inner: PgType::BOOL,
             } => write!(fmt, "bool"),
             Self::Builtin {
-                inner: postgres_types::Type::TIMESTAMP,
+                inner: PgType::TIMESTAMP,
             } => write!(fmt, "chrono::naive::NaiveDateTime"),
             Self::Builtin {
-                inner: postgres_types::Type::TIMESTAMPTZ,
+                inner: PgType::TIMESTAMPTZ,
             } => write!(fmt, "chrono::DateTime<chrono::Utc>"),
             Self::Composite { inner } => write!(fmt, "{}", AsUpperCamelCase(&inner.name)),
             _ => todo!(),
@@ -67,31 +70,31 @@ impl Type {
     pub fn is_copy(&self) -> bool {
         match self {
             Self::Builtin {
-                inner: postgres_types::Type::BOOL,
+                inner: PgType::BOOL,
             }
             | Self::Builtin {
-                inner: postgres_types::Type::INT8,
+                inner: PgType::TIMESTAMP,
             }
             | Self::Builtin {
-                inner: postgres_types::Type::INT4,
+                inner: PgType::TIMESTAMPTZ,
+            }
+            | Self::Builtin {
+                inner: PgType::INT8,
+            }
+            | Self::Builtin {
+                inner: PgType::INT4,
             } => true,
             Self::Builtin {
-                inner: postgres_types::Type::TEXT,
+                inner: PgType::TEXT,
             }
             | Self::Builtin {
-                inner: postgres_types::Type::TEXT_ARRAY,
+                inner: PgType::TEXT_ARRAY,
             }
             | Self::Builtin {
-                inner: postgres_types::Type::BYTEA,
+                inner: PgType::BYTEA,
             }
             | Self::Builtin {
-                inner: postgres_types::Type::BYTEA_ARRAY,
-            }
-            | Self::Builtin {
-                inner: postgres_types::Type::TIMESTAMP,
-            }
-            | Self::Builtin {
-                inner: postgres_types::Type::TIMESTAMPTZ,
+                inner: PgType::BYTEA_ARRAY,
             }
             | Self::Composite { inner: _ } => false,
             _ => todo!(),
@@ -109,13 +112,13 @@ impl std::fmt::Display for TypeAsRef<'_> {
         let Self { val, lifetime } = self;
         match val {
             Type::Builtin {
-                inner: postgres_types::Type::INT8,
+                inner: PgType::INT8,
             } => write!(fmt, "i64"),
             Type::Builtin {
-                inner: postgres_types::Type::INT4,
+                inner: PgType::INT4,
             } => write!(fmt, "i32"),
             Type::Builtin {
-                inner: postgres_types::Type::TEXT,
+                inner: PgType::TEXT,
             } => write!(
                 fmt,
                 "&{}{}{}str",
@@ -128,7 +131,7 @@ impl std::fmt::Display for TypeAsRef<'_> {
                 if lifetime.is_some() { " " } else { "" }
             ),
             Type::Builtin {
-                inner: postgres_types::Type::TEXT_ARRAY,
+                inner: PgType::TEXT_ARRAY,
             } => write!(
                 fmt,
                 "Vec<&{}{}{}str>",
@@ -141,10 +144,10 @@ impl std::fmt::Display for TypeAsRef<'_> {
                 if lifetime.is_some() { " " } else { "" }
             ),
             Type::Builtin {
-                inner: postgres_types::Type::BYTEA,
+                inner: PgType::BYTEA,
             } => write!(fmt, "Vec<u8>"),
             Type::Builtin {
-                inner: postgres_types::Type::BYTEA_ARRAY,
+                inner: PgType::BYTEA_ARRAY,
             } => write!(
                 fmt,
                 "Vec<&{}{}{}[u8]>",
@@ -157,34 +160,14 @@ impl std::fmt::Display for TypeAsRef<'_> {
                 if lifetime.is_some() { " " } else { "" }
             ),
             Type::Builtin {
-                inner: postgres_types::Type::BOOL,
+                inner: PgType::BOOL,
             } => write!(fmt, "bool"),
             Type::Builtin {
-                inner: postgres_types::Type::TIMESTAMP,
-            } => write!(
-                fmt,
-                "&{}{}{}chrono::naive::NaiveDateTime",
-                if lifetime.is_some() { "'" } else { "" },
-                if let Some(l) = lifetime.as_ref() {
-                    *l
-                } else {
-                    ""
-                },
-                if lifetime.is_some() { " " } else { "" }
-            ),
+                inner: PgType::TIMESTAMP,
+            } => write!(fmt, "chrono::naive::NaiveDateTime",),
             Type::Builtin {
-                inner: postgres_types::Type::TIMESTAMPTZ,
-            } => write!(
-                fmt,
-                "&{}{}{}chrono::DateTime<chrono::Utc>",
-                if lifetime.is_some() { "'" } else { "" },
-                if let Some(l) = lifetime.as_ref() {
-                    *l
-                } else {
-                    ""
-                },
-                if lifetime.is_some() { " " } else { "" }
-            ),
+                inner: PgType::TIMESTAMPTZ,
+            } => write!(fmt, "chrono::DateTime<chrono::Utc>",),
             Type::Composite { inner } => write!(
                 fmt,
                 "&{}{}{}{}",
