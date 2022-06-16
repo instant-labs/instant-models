@@ -37,7 +37,7 @@ fn test_basic() {
     }
 
     assert_eq!(struct_bldr.columns.len(), 6);
-    let result = struct_bldr.build();
+    let result = struct_bldr.build_type();
     println!("final:\n{}", &result);
     assert_eq!(
         result.replace([' ', '\r', '\n'], ""),
@@ -51,4 +51,6 @@ fn test_basic() {
 }"#
         .replace([' ', '\r', '\n'], "")
     );
+
+    println!("new type:\n{}", struct_bldr.build_new_type());
 }
