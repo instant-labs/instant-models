@@ -1,4 +1,6 @@
-use super::*;
+use crate::{Type, TypeAsRef};
+use heck::AsSnakeCase;
+use std::borrow::Cow;
 
 #[derive(Debug, PartialEq)]
 pub struct ForeignKey {
@@ -66,9 +68,9 @@ impl Column {
 impl std::fmt::Display for Column {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         if self.null {
-            write!(fmt, "{}: Option<{}>,", AsSnakeCase(&self.name), self.r#type)
+            write!(fmt, "{}: Option<{}>", AsSnakeCase(&self.name), self.r#type)
         } else {
-            write!(fmt, "{}: {},", AsSnakeCase(&self.name), self.r#type)
+            write!(fmt, "{}: {}", AsSnakeCase(&self.name), self.r#type)
         }
     }
 }
@@ -87,10 +89,10 @@ impl std::fmt::Display for NewValue<'_> {
                 self.val.default.as_ref().unwrap()
             );
         }
-        if self.val.null {
+        if self.val.null || self.val.default.is_some() {
             write!(
                 fmt,
-                "{}: Option<{}>,",
+                "{}: Option<{}>",
                 AsSnakeCase(&self.val.name),
                 TypeAsRef {
                     lifetime: self.lifetime,
@@ -100,7 +102,7 @@ impl std::fmt::Display for NewValue<'_> {
         } else {
             write!(
                 fmt,
-                "{}: {},",
+                "{}: {}",
                 AsSnakeCase(&self.val.name),
                 TypeAsRef {
                     lifetime: self.lifetime,
@@ -124,4 +126,3 @@ pub enum Constraint {
         columns: Vec<Cow<'static, str>>,
     },
 }
-
