@@ -78,6 +78,44 @@ impl std::fmt::Display for Column {
     }
 }
 
+struct NewValue<'a> {
+    lifetime: Option<&'a str>,
+    val: &'a Column,
+}
+
+impl std::fmt::Display for NewValue<'_> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if self.val.null && self.val.default.is_some() {
+            panic!(
+                "Column `{}` is both NULL and takes a default value `{}`",
+                self.val.name,
+                self.val.default.as_ref().unwrap()
+            );
+        }
+        if self.val.null {
+            write!(
+                fmt,
+                "{}: Option<{}>,",
+                AsSnakeCase(&self.val.name),
+                TypeAsRef {
+                    lifetime: self.lifetime,
+                    val: &self.val.r#type
+                }
+            )
+        } else {
+            write!(
+                fmt,
+                "{}: {},",
+                AsSnakeCase(&self.val.name),
+                TypeAsRef {
+                    lifetime: self.lifetime,
+                    val: &self.val.r#type
+                }
+            )
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Constraint {
     ForeignKey {
@@ -122,8 +160,30 @@ impl StructBuilder {
         self
     }
 
-    pub fn build(self) -> String {
+    pub fn build_type(&self) -> String {
         format!("{}", self)
+    }
+
+    pub fn build_new_type(&self) -> String {
+        let columns = self.columns.values().fold(String::new(), |mut acc, col| {
+            acc.push_str(&format!(
+                "    {}",
+                NewValue {
+                    val: &col,
+                    lifetime: Some("a")
+                }
+            ));
+            acc.push('\n');
+            acc
+        });
+
+        format!(
+            r#"pub struct {}New<'a> {{
+{}}}
+        "#,
+            AsUpperCamelCase(&self.name),
+            columns
+        )
     }
 }
 
@@ -203,6 +263,145 @@ impl std::fmt::Display for Type {
                 inner: postgres_types::Type::TIMESTAMPTZ,
             } => write!(fmt, "chrono::DateTime<chrono::Utc>"),
             Self::Composite { inner } => write!(fmt, "{}", AsUpperCamelCase(&inner.name)),
+            _ => todo!(),
+        }
+    }
+}
+
+impl Type {
+    pub fn is_copy(&self) -> bool {
+        match self {
+            Self::Builtin {
+                inner: postgres_types::Type::BOOL,
+            }
+            | Self::Builtin {
+                inner: postgres_types::Type::INT8,
+            }
+            | Self::Builtin {
+                inner: postgres_types::Type::INT4,
+            } => true,
+            Self::Builtin {
+                inner: postgres_types::Type::TEXT,
+            }
+            | Self::Builtin {
+                inner: postgres_types::Type::TEXT_ARRAY,
+            }
+            | Self::Builtin {
+                inner: postgres_types::Type::BYTEA,
+            }
+            | Self::Builtin {
+                inner: postgres_types::Type::BYTEA_ARRAY,
+            }
+            | Self::Builtin {
+                inner: postgres_types::Type::TIMESTAMP,
+            }
+            | Self::Builtin {
+                inner: postgres_types::Type::TIMESTAMPTZ,
+            }
+            | Self::Composite { inner: _ } => false,
+            _ => todo!(),
+        }
+    }
+}
+
+struct TypeAsRef<'a> {
+    lifetime: Option<&'a str>,
+    val: &'a Type,
+}
+
+impl std::fmt::Display for TypeAsRef<'_> {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let Self { val, lifetime } = self;
+        match val {
+            Type::Builtin {
+                inner: postgres_types::Type::INT8,
+            } => write!(fmt, "i64"),
+            Type::Builtin {
+                inner: postgres_types::Type::INT4,
+            } => write!(fmt, "i32"),
+            Type::Builtin {
+                inner: postgres_types::Type::TEXT,
+            } => write!(
+                fmt,
+                "&{}{}{}str",
+                if lifetime.is_some() { "'" } else { "" },
+                if let Some(l) = lifetime.as_ref() {
+                    *l
+                } else {
+                    ""
+                },
+                if lifetime.is_some() { " " } else { "" }
+            ),
+            Type::Builtin {
+                inner: postgres_types::Type::TEXT_ARRAY,
+            } => write!(
+                fmt,
+                "Vec<&{}{}{}str>",
+                if lifetime.is_some() { "'" } else { "" },
+                if let Some(l) = lifetime.as_ref() {
+                    *l
+                } else {
+                    ""
+                },
+                if lifetime.is_some() { " " } else { "" }
+            ),
+            Type::Builtin {
+                inner: postgres_types::Type::BYTEA,
+            } => write!(fmt, "Vec<u8>"),
+            Type::Builtin {
+                inner: postgres_types::Type::BYTEA_ARRAY,
+            } => write!(
+                fmt,
+                "Vec<&{}{}{}[u8]>",
+                if lifetime.is_some() { "'" } else { "" },
+                if let Some(l) = lifetime.as_ref() {
+                    *l
+                } else {
+                    ""
+                },
+                if lifetime.is_some() { " " } else { "" }
+            ),
+            Type::Builtin {
+                inner: postgres_types::Type::BOOL,
+            } => write!(fmt, "bool"),
+            Type::Builtin {
+                inner: postgres_types::Type::TIMESTAMP,
+            } => write!(
+                fmt,
+                "&{}{}{}chrono::naive::NaiveDateTime",
+                if lifetime.is_some() { "'" } else { "" },
+                if let Some(l) = lifetime.as_ref() {
+                    *l
+                } else {
+                    ""
+                },
+                if lifetime.is_some() { " " } else { "" }
+            ),
+            Type::Builtin {
+                inner: postgres_types::Type::TIMESTAMPTZ,
+            } => write!(
+                fmt,
+                "&{}{}{}chrono::DateTime<chrono::Utc>",
+                if lifetime.is_some() { "'" } else { "" },
+                if let Some(l) = lifetime.as_ref() {
+                    *l
+                } else {
+                    ""
+                },
+                if lifetime.is_some() { " " } else { "" }
+            ),
+            Type::Composite { inner } => write!(
+                fmt,
+                "&{}{}{}{}",
+                if lifetime.is_some() { "'" } else { "" },
+                if let Some(l) = lifetime.as_ref() {
+                    *l
+                } else {
+                    ""
+                },
+                if lifetime.is_some() { " " } else { "" },
+                AsUpperCamelCase(&inner.name)
+            ),
             _ => todo!(),
         }
     }
