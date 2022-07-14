@@ -101,8 +101,44 @@ impl StructBuilder {
             fields.pop();
             fields.pop();
         }
+        let mut consts = format!("pub const TABLE_NAME: &'static str = \"{}\";\n", self.name);
+
+        for (db_name, col) in &self.columns {
+            consts.extend(
+                format!(
+                    r#"pub const {COLUMN_UPPER_NAME}: Column<{COLUMN_RUST_TYPE}> = Column {{
+            table: Self::TABLE_NAME,
+            name: "{COLUMN_DB_NAME}",
+            phantom: std::marker::PhantomData,
+            }};
+"#,
+                    COLUMN_UPPER_NAME = col.name.to_uppercase(),
+                    COLUMN_RUST_TYPE = col.r#type,
+                    COLUMN_DB_NAME = db_name,
+                )
+                .chars(),
+            );
+        }
+        consts.push_str("pub const ALL_COLUMNS: &'static [&'static str] = &[");
+        for db_name in self.columns.keys() {
+            consts.extend(format!("\"{}\", ", db_name).chars());
+        }
+        consts.push_str("];\n\n");
+        let mut try_from_fields = self.columns.values().fold(String::new(), |mut acc, col| {
+            acc.push_str(&format!(
+                "{0}: row.try_get(\"{0}\")?, ",
+                AsSnakeCase(&col.name)
+            ));
+            acc
+        });
+        if try_from_fields.ends_with(", ") {
+            try_from_fields.pop();
+            try_from_fields.pop();
+        }
+
         format!(
             r#"impl {0} {{
+            {consts}
         pub fn insert_slice(client: &mut postgres::Client, slice: &[{0}New<'_>]) -> Result<(), postgres::Error> {{
             let statement = client.prepare("{sql_statement}")?;
             for entry in slice {{
@@ -110,9 +146,35 @@ impl StructBuilder {
             }}
             Ok(())
         }}
+
+        pub fn all(client: &mut postgres::Client) -> Result<Vec<Self>, postgres::Error> {{
+            let q = Query::new(
+                false,
+                Self::ALL_COLUMNS.iter().map(|&c| c.into()).collect::<Vec<_>>(),
+                Self::TABLE_NAME.into(),
+                Query::<bool>::NONE,
+            );
+
+            let mut ret = vec![];
+            for row in client.query(&q.to_string(), &[]).unwrap() {{
+                ret.push(Self::try_from(row)?);
+            }}
+            Ok(ret)
+        }}
+}}
+
+impl TryFrom<postgres::row::Row> for {0} {{
+    type Error = postgres::error::Error;
+    fn try_from(row: postgres::row::Row) -> Result<Self, Self::Error> {{
+        Ok(Self {{
+        {try_from_fields}
+        }})
+    }}
 }}
         "#,
             AsUpperCamelCase(&self.name),
+            consts = consts,
+            try_from_fields = try_from_fields,
         )
     }
 

@@ -5,15 +5,22 @@ use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::process::Command;
 
+// Uncomment to prevent automatic cleanup of generated project
+//const TMP_DIR: Option<&'static str> = Some("/tmp/basic/");
+const TMP_DIR: Option<&'static str> = None;
+
+const RUN_CARGO_TESTS: bool = true;
+
 /// Create a library crate and make sure the generated code type checks.
-fn create_cargo_project(builder: StructBuilder) -> Result<(), anyhow::Error> {
+fn create_cargo_project(builder: StructBuilder, cargo_test: bool) -> Result<(), anyhow::Error> {
+    println!("creating cargo project...");
     let cargo = Command::new("cargo")
         .arg("init")
         .arg("--lib")
         .arg("--name")
         .arg("basictest")
-        //.stdout(Stdio::inherit())
-        //.stderr(Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
         .output()
         .expect("failed to execute process");
     if !cargo.status.success() {
@@ -25,6 +32,7 @@ fn create_cargo_project(builder: StructBuilder) -> Result<(), anyhow::Error> {
 
 "#;
     file.write_all(header.as_bytes())?;
+    file.write_all(include_bytes!("../src/select.rs"))?;
     file.write_all(builder.build_type().as_bytes())?;
     file.write_all(builder.build_new_type().as_bytes())?;
     file.write_all(builder.build_type_methods().as_bytes())?;
@@ -42,14 +50,44 @@ postgres = { version = "0.19.3", features = ["with-chrono-0_4", ] }
         .as_bytes(),
     )?;
     drop(manifest_file);
+    if cargo_test {
+        println!("Creating test file at ./tests/basic.rs...");
+        std::fs::create_dir("./tests")?;
+        let mut file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open("./tests/basic.rs")?;
+
+        file.write_all(include_bytes!("./basic/testfile.rs"))?;
+    } else {
+        println!("Not creating test file.");
+    }
+
+    println!("running `cargo check`...");
     let check = Command::new("cargo")
         .arg("check")
-        //.stdout(Stdio::inherit())
-        //.stderr(Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
         .output()
         .expect("failed to execute process");
     if !check.status.success() {
         return Err(anyhow::anyhow!("cargo check returned error"));
+    }
+
+    if cargo_test {
+        println!("running `cargo test`...");
+        let check = Command::new("cargo")
+            .arg("test")
+            .arg("--")
+            .arg("--nocapture")
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
+            .output()
+            .expect("failed to execute process");
+        if !check.status.success() {
+            return Err(anyhow::anyhow!("cargo test returned error"));
+        }
     }
 
     Ok(())
@@ -100,10 +138,21 @@ fn test_basic() {
     );
 
     let cwd = std::env::current_dir().unwrap();
-    let tmpdir = tempfile::tempdir().unwrap();
-    std::env::set_current_dir(tmpdir.path()).unwrap();
-    let ret = create_cargo_project(struct_bldr);
+    let tmpdir = if let Some(tmpdir) = TMP_DIR {
+        let _ = std::fs::create_dir(tmpdir);
+        std::env::set_current_dir(tmpdir).unwrap();
+        println!("Generating project at {}", tmpdir);
+        None
+    } else {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::env::set_current_dir(tmpdir.path()).unwrap();
+        println!("Generating project at {}", tmpdir.path().display());
+        Some(tmpdir)
+    };
+    let ret = create_cargo_project(struct_bldr, RUN_CARGO_TESTS);
     std::env::set_current_dir(&cwd).unwrap();
-    tmpdir.close().unwrap();
+    if let Some(d) = tmpdir {
+        d.close().unwrap();
+    }
     ret.unwrap();
 }
