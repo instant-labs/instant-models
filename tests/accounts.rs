@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-use postgres::{Config, NoTls}; //
+use postgres::{Config, NoTls};
+use sea_query::PostgresQueryBuilder; //
 
 // Example generated with
 // `cargo run --bin cli --features="postgres clap" -- -t "accounts" > accounts.rs`
@@ -20,6 +21,89 @@ pub struct AccountsNew<'a> {
     pub email: &'a str,
     pub created_on: chrono::naive::NaiveDateTime,
     pub last_login: Option<chrono::naive::NaiveDateTime>,
+}
+
+// TODO: derive this automatically.
+#[derive(sea_query::Iden)]
+pub enum AccountsIden {
+    Table,
+    UserId,
+    Username,
+    Password,
+    Email,
+    CreatedOn,
+    LastLogin
+}
+
+// TODO: derive this automatically
+impl AccountsIden {
+    pub fn eq(self, value: impl Into<sea_query::Value>) -> sea_query::SimpleExpr {
+        sea_query::Expr::col(self).eq(value)
+    }
+
+    pub fn is_not_null(self) -> sea_query::SimpleExpr {
+        sea_query::Expr::col(self).is_not_null()
+    }
+
+    // TODO: re-export rest of sea_query::Expr functions.
+}
+
+// TODO: derive this automatically.
+impl Accounts {
+    pub fn table() -> AccountsIden { AccountsIden::Table }
+
+    // Columns
+    pub fn user_id() -> AccountsIden { AccountsIden::UserId }
+    pub fn username() -> AccountsIden { AccountsIden::Username }
+    pub fn password() -> AccountsIden { AccountsIden::Password }
+    pub fn email() -> AccountsIden { AccountsIden::Email }
+    pub fn created_on() -> AccountsIden { AccountsIden::CreatedOn }
+    pub fn last_login() -> AccountsIden { AccountsIden::LastLogin }
+
+    // Example helper function.
+    pub fn all_columns() -> &'static [AccountsIden] {
+        &[
+            AccountsIden::UserId,
+            AccountsIden::Username,
+            AccountsIden::Password,
+            AccountsIden::Email,
+            AccountsIden::CreatedOn,
+            AccountsIden::LastLogin,
+        ]
+    }
+
+    // TODO: export this (and other queries/statements) in a trait instead?
+    pub fn filter() -> sea_query::SelectStatement {
+        let mut query = sea_query::Query::select();
+        // Automatically choose the correct table.
+        query.from(AccountsIden::Table);
+        query
+    }
+}
+
+#[test]
+fn test_sea_query() {
+    let expected = r#"SELECT "user_id", "email", "last_login" FROM "accounts_iden" WHERE "username" = 'foo' AND "last_login" IS NOT NULL LIMIT 1"#;
+
+    let user = "foo";
+    let query: String = Accounts::filter()
+      .columns([Accounts::user_id(), Accounts::email(), Accounts::last_login()])
+      .and_where(Accounts::username().eq(user))
+      .and_where(Accounts::last_login().is_not_null())
+      .limit(1)
+      .to_string(PostgresQueryBuilder);
+
+    assert_eq!(query, expected);
+    // let row = sqlx::query!(query)
+    //   .fetch_one(&pool)
+    //   .await?;
+
+    // TODO: custom trait/s to simplify query/statement execution ergonomics, so they
+    //       can be called immediately with, e.g. `.fetch_one(&pool)?`, rather than two steps,
+    //       and without the `PostgresQueryBuilder`?
+
+    // TODO: how to use prepared statements to avoid SQL injection?
+    //       https://github.com/SeaQL/sea-query/issues/22
 }
 
 impl Accounts {
