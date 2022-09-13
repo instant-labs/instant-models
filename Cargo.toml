@@ -14,9 +14,9 @@ heck = "0.4.0"
 indexmap = { version = "1.8.2" }
 postgres = { version = "0.19.3", optional = true }
 postgres-types = { version = "0.2.3", features = ["derive"] }
+sea-query = { version = "0.26.3", default-features = false, features = ["backend-postgres", "derive", "with-chrono"] }
 thiserror = "1.0.31"
 time = { version = "0.3.9", features = ["parsing"] }
-sea-query = { version = "0.26.3", default-features = false, features = ["backend-postgres", "derive", "with-chrono"] }
 
 [dev-dependencies]
 chrono = "0.4"

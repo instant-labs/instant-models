@@ -3,7 +3,7 @@
 use std::fmt::Write;
 use std::marker::PhantomData;
 use postgres::{Config, NoTls};
-use sea_query::{ConditionalStatement, PostgresQueryBuilder}; //
+use sea_query::{ConditionalStatement, PostgresQueryBuilder, Query}; //
 
 // Example generated with
 // `cargo run --bin cli --features="postgres clap" -- -t "accounts" > accounts.rs`
@@ -25,6 +25,59 @@ pub struct AccountsNew<'a> {
     pub created_on: chrono::naive::NaiveDateTime,
     pub last_login: Option<chrono::naive::NaiveDateTime>,
 }
+
+pub struct Access {
+    pub user: i32,
+    pub domain: i32,
+    pub role: String,
+}
+
+#[derive(sea_query::Iden, Copy, Clone)]
+pub enum AccessIden {
+    Table,
+    User,
+    Domain,
+    Role,
+}
+
+pub struct AccessFields {
+    pub table: AccessIden,
+    pub user: AccessIden,
+    pub domain: AccessIden,
+    pub role: AccessIden,
+}
+
+pub const ACCESS_FIELDS: AccessFields = AccessFields {
+    table: AccessIden::Table,
+    user: AccessIden::User,
+    domain: AccessIden::Domain,
+    role: AccessIden::Role,
+};
+
+pub struct Example {
+    pub id: i32,
+    pub example: String,
+}
+
+#[derive(sea_query::Iden, Copy, Clone)]
+pub enum ExampleIden {
+    Table,
+    Id,
+    Example,
+}
+
+pub struct ExampleFields {
+    pub table: ExampleIden,
+    pub id: ExampleIden,
+    pub example: ExampleIden,
+}
+
+pub const FAKE_FIELDS: ExampleFields = ExampleFields {
+    table: ExampleIden::Table,
+    id: ExampleIden::Id,
+    example: ExampleIden::Example,
+};
+
 
 // TODO: derive this automatically.
 #[derive(Copy, Clone)]
@@ -56,6 +109,22 @@ impl sea_query::Iden for AccountsIden {
     }
 }
 
+pub trait Table {
+    type Iden: IdenFields + 'static;
+}
+
+impl Table for Accounts {
+    type Iden = AccountsIden;
+}
+
+impl Table for Access {
+    type Iden = AccessIden;
+}
+
+impl Table for Example {
+    type Iden = ExampleIden;
+}
+
 pub trait IdenFields: sea_query::Iden {
     type Fields;
 
@@ -67,13 +136,147 @@ impl IdenFields for AccountsIden {
     type Fields = AccountsFields;
 
     fn table() -> Self {
-        Self::Table
+        AccountsIden::Table
     }
 
     fn fields() -> Self::Fields {
         ACCOUNTS_FIELDS
     }
 }
+
+impl IdenFields for AccessIden {
+    type Fields = AccessFields;
+
+    fn table() -> Self {
+        AccessIden::Table
+    }
+
+    fn fields() -> Self::Fields {
+        ACCESS_FIELDS
+    }
+}
+
+impl IdenFields for ExampleIden {
+    type Fields = ExampleFields;
+
+    fn table() -> Self {
+        ExampleIden::Table
+    }
+
+    fn fields() -> Self::Fields {
+        FAKE_FIELDS
+    }
+}
+
+pub trait Sources {
+    type SOURCES;
+
+    fn sources() -> Self::SOURCES;
+    fn tables() -> Vec<sea_query::TableRef>;
+    fn as_sources(self) -> Self;
+}
+
+pub trait Combine<O> {
+    type COMBINED;
+
+    fn combine(other: O) -> Self::COMBINED;
+}
+
+impl<T: IdenFields + 'static> Sources for T {
+    type SOURCES = T::Fields;
+
+    fn sources() -> Self::SOURCES {
+        T::fields()
+    }
+
+    fn tables() -> Vec<sea_query::TableRef> {
+        use sea_query::IntoTableRef;
+        vec![T::table().into_table_ref()]
+    }
+
+    fn as_sources(self) -> Self {
+        self
+    }
+}
+
+impl<T: IdenFields + 'static, O: IdenFields + 'static> Combine<O> for T {
+    type COMBINED = (T, O);
+
+    fn combine(other: O) -> Self::COMBINED {
+        (T::table(), other)
+    }
+}
+
+impl<A: IdenFields + 'static, B: IdenFields + 'static> Sources for (A, B) {
+    type SOURCES = (A::Fields, B::Fields);
+
+    fn sources() -> Self::SOURCES {
+        (A::fields(), B::fields())
+    }
+
+    fn tables() -> Vec<sea_query::TableRef> {
+        use sea_query::IntoTableRef;
+        vec![A::table().into_table_ref(), B::table().into_table_ref()]
+    }
+
+    fn as_sources(self) -> Self {
+        self
+    }
+}
+
+impl<A: IdenFields + 'static, B: IdenFields + 'static, O: IdenFields + 'static> Combine<O> for (A, B) {
+    type COMBINED = (A, B, O);
+
+    fn combine(other: O) -> Self::COMBINED {
+        (A::table(), B::table(), other)
+    }
+}
+
+macro_rules! impl_sources_tuple {
+    ( $( $name:ident )+ ) => {
+        impl<$($name: IdenFields + 'static),+> Sources for ($($name,)+)
+        {
+            type SOURCES = ($($name::Fields,)+);
+
+            fn sources() -> Self::SOURCES {
+                ($($name::fields(),)+)
+            }
+
+            fn tables() -> Vec<sea_query::TableRef> {
+                use sea_query::IntoTableRef;
+                vec![$($name::table().into_table_ref(),)+]
+            }
+
+            fn as_sources(self) -> Self {
+                self
+            }
+        }
+    };
+    ( $( $name:ident )+, $joinable:expr ) => {
+        impl_sources_tuple!($($name)+);
+
+        impl<Z: IdenFields + 'static, $($name: IdenFields + 'static),+> Combine<Z> for ($($name,)+) {
+            type COMBINED = ($($name,)+ Z);
+
+            fn combine(other: Z) -> Self::COMBINED {
+                ($($name::table(),)+ other).as_sources()
+            }
+        }
+    };
+}
+
+impl_sources_tuple! { A, true }
+// impl_sources_tuple! { A B, true }
+impl_sources_tuple! { A B C, true }
+impl_sources_tuple! { A B C D, true }
+impl_sources_tuple! { A B C D E, true }
+impl_sources_tuple! { A B C D E F, true }
+impl_sources_tuple! { A B C D E F G, true }
+impl_sources_tuple! { A B C D E F G H, true }
+impl_sources_tuple! { A B C D E F G H I, true }
+impl_sources_tuple! { A B C D E F G H I J, true }
+impl_sources_tuple! { A B C D E F G H I J K, true }
+impl_sources_tuple! { A B C D E F G H I J K L } // does not implement Join.
 
 pub struct AccountsFields {
     pub user_id: AccountsIden,
@@ -102,6 +305,13 @@ impl Sql {
     where T: sea_query::IntoColumnRef, V: Into<sea_query::Value> {
         Self {
             cond: sea_query::Cond::all().add(sea_query::Expr::col(col).eq(value))
+        }
+    }
+
+    pub fn equals<T, U, V>(left: T, table: U, right: V) -> Self
+    where T: sea_query::IntoColumnRef, U: sea_query::IntoIden, V: sea_query::IntoIden {
+        Self {
+            cond: sea_query::Cond::all().add(sea_query::Expr::col(left).equals(table, right))
         }
     }
 
@@ -158,45 +368,58 @@ impl AccountsIden {
 }
 
 pub struct SqlQuery<T> {
-    table: PhantomData<T>,
+    sources: PhantomData<T>,
     // TODO: replace SelectStatement with something custom.
     query: sea_query::SelectStatement,
 }
 
 // TODO: replace sea_query::Iden with something custom.
-impl<T: IdenFields + Copy + 'static> SqlQuery<T> {
+impl<T: Sources> SqlQuery<T> {
     pub fn new() -> SqlQuery<T> {
         let mut query = sea_query::SelectStatement::new();
-        query.from(T::table());
+        for table in T::tables() {
+            query.from(table);
+        }
         Self {
             query,
-            table: PhantomData::<T>,
+            sources: PhantomData::<T>,
         }
     }
 
-    pub fn select<F, C, I>(&mut self, columns: F) -> &mut Self
+    pub fn select<F, C, I>(mut self, columns: F) -> Self
     where
-    F: FnOnce(T::Fields) -> I,
+    F: FnOnce(T::SOURCES) -> I,
     C: sea_query::IntoColumnRef,
     I: IntoIterator<Item = C>,
     {
-        self.query.columns(columns(T::fields()));
+        self.query.columns(columns(T::sources()));
         self
     }
 
-    pub fn where_<F>(&mut self, conditions: F) -> &mut Self
-    where F: FnOnce(T::Fields) -> Sql {
-        self.query.cond_where(conditions(T::fields()).cond);
+    pub fn where_<F>(mut self, conditions: F) -> Self
+    where F: FnOnce(T::SOURCES) -> Sql {
+        self.query.cond_where(conditions(T::sources()).cond);
         self
     }
 
-    pub fn limit(&mut self, limit: u64) -> &mut Self {
+    pub fn limit(mut self, limit: u64) -> Self {
         self.query.limit(limit);
         self
     }
 
     pub fn to_string(&self) -> String {
         self.query.to_string(PostgresQueryBuilder)
+    }
+}
+
+impl<T: Sources> SqlQuery<T> {
+    fn from<O: Table>(mut self) -> SqlQuery<T::COMBINED>
+    where T: Combine<O::Iden> {
+        self.query.from(O::Iden::table());
+        SqlQuery {
+            sources: PhantomData::<T::COMBINED>,
+            query: self.query
+        }
     }
 }
 
@@ -233,16 +456,24 @@ impl Accounts {
 #[test]
 fn test_sea_query() {
     let expected = r#"SELECT "user_id", "username", "password", "email"
-FROM "accounts"
-WHERE "username" = 'foo' AND ("last_login" IS NOT NULL OR "created_on" <> '1970-01-01 00:00:00')
-LIMIT 1"#;
+FROM "accounts", "access", "example"
+WHERE "username" = 'foo'
+    AND ("last_login" IS NOT NULL OR "created_on" <> '1970-01-01 00:00:00')
+    AND ("user_id" = "access"."user" AND "role" = 'DomainAdmin')
+    AND "user_id" = "example"."id"
+"#;
 
     let user = "foo";
+    let role = "DomainAdmin";
     let timestamp = chrono::NaiveDateTime::from_timestamp(0, 0);
+
     let query = Accounts::query()
       .select(|a| [a.user_id, a.username, a.password, a.email])
       .where_(|a| Sql::eq(a.username, user) & (Sql::is_not_null(a.last_login) | a.created_on.ne(timestamp)))
-      .limit(1)
+      .from::<Access>()
+      .where_(|(a, acl)| Sql::equals(a.user_id, acl.table, acl.user) & Sql::eq(acl.role, role))
+      .from::<Example>()
+      .where_(|(a, .., ex)| Sql::equals(a.user_id, ex.table, ex.id))
       .to_string();
 
     assert_eq!(query, expected.replace('\n', " "));
