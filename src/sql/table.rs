@@ -23,10 +23,10 @@ pub trait Table {
 pub trait Sources {
     type SOURCES;
 
-    /// All tables in the query. Returns a tuple if more than one table is referenced.
+    /// Table field definitions. Returns a tuple if more than one table is referenced.
     fn sources() -> Self::SOURCES;
 
-    /// List of all table identifiers currently referenced in the query.
+    /// List of all table identifiers.
     fn tables() -> Vec<sea_query::TableRef>;
 }
 
@@ -43,7 +43,7 @@ impl<T: Table + ?Sized> Sources for T {
     }
 }
 
-/// Helper trait for combining tuples of SQL table field definitions.
+/// Helper trait for combining tuples of SQL tables.
 ///
 /// E.g.
 /// - A + B => (A,B).
@@ -52,13 +52,13 @@ pub trait Combine<O> {
     type COMBINED;
 }
 
-impl<A: Table + 'static, B: Table + 'static> Combine<B> for A {
+impl<A: Table, B: Table> Combine<B> for A {
     type COMBINED = (A, B);
 }
 
 macro_rules! impl_sources_tuple {
     ( $( $name:ident )+ ) => {
-        impl<$($name: Table + 'static),+> Sources for ($($name,)+)
+        impl<$($name: Table),+> Sources for ($($name,)+)
         {
             type SOURCES = ($($name::FieldsType,)+);
 
@@ -75,7 +75,7 @@ macro_rules! impl_sources_tuple {
     ( $( $name:ident )+, $joinable:expr ) => {
         impl_sources_tuple!($($name)+);
 
-        impl<Z: Table + 'static, $($name: Table + 'static),+> Combine<Z> for ($($name,)+) {
+        impl<Z: Table, $($name: Table),+> Combine<Z> for ($($name,)+) {
             type COMBINED = ($($name,)+ Z);
         }
     };
