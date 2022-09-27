@@ -1,14 +1,15 @@
-use std::marker::PhantomData;
-use sea_query::JoinType;
 use crate::{Combine, Sources, Table};
+use std::fmt::{Display, Formatter};
+use std::marker::PhantomData;
 
+#[derive(Default)]
 pub struct SqlQuery<T: ?Sized> {
     sources: PhantomData<T>,
-    // TODO: replace SelectStatement with something custom.
+    // TODO: replace sea_query.
     query: sea_query::SelectStatement,
 }
 
-// TODO: replace sea_query::Iden with something custom.
+// TODO: replace sea_query.
 impl<T: Sources + ?Sized> SqlQuery<T> {
     pub fn new() -> SqlQuery<T> {
         let mut query = sea_query::SelectStatement::new();
@@ -22,18 +23,18 @@ impl<T: Sources + ?Sized> SqlQuery<T> {
     }
 
     pub fn select<F, C, I>(mut self, columns: F) -> Self
-        where
-            F: FnOnce(T::SOURCES) -> I,
-            C: sea_query::IntoColumnRef,
-            I: IntoIterator<Item = C>,
+    where
+        F: FnOnce(T::SOURCES) -> I,
+        C: sea_query::IntoColumnRef,
+        I: IntoIterator<Item = C>,
     {
         self.query.columns(columns(T::sources()));
         self
     }
 
-    pub fn where_<F>(mut self, conditions: F) -> Self
-        where
-            F: FnOnce(T::SOURCES) -> Sql,
+    pub fn filter<F>(mut self, conditions: F) -> Self
+    where
+        F: FnOnce(T::SOURCES) -> Sql,
     {
         self.query.cond_where(conditions(T::sources()).cond);
         self
@@ -44,34 +45,50 @@ impl<T: Sources + ?Sized> SqlQuery<T> {
         self
     }
 
-    pub fn to_string(&self) -> String {
-        self.query.to_string(sea_query::PostgresQueryBuilder)
+    pub fn from<O: Table>(mut self) -> SqlQuery<T::COMBINED>
+    where
+        T: Combine<O>,
+    {
+        self.query.from(O::table());
+        SqlQuery {
+            sources: PhantomData::<T::COMBINED>,
+            query: self.query,
+        }
+    }
+
+    pub fn join<O: Table>(mut self) -> SqlQuery<T::COMBINED>
+    where
+        // TODO: restrict join to only tables with foreign keys.
+        T: Combine<O>,
+    {
+        // TODO: join on foreign keys, or add them to a list and handle them on .finish()/whatever.
+        // self.query.join(sea_query::JoinType::Join, T::table(), );
+        SqlQuery {
+            sources: PhantomData::<T::COMBINED>,
+            query: self.query,
+        }
     }
 }
 
-impl<S: Sources> SqlQuery<S> {
-    fn from<T: Table>(mut self) -> SqlQuery<S::COMBINED>
-        where
-            S: Combine<T>,
-    {
-        self.query.from(T::table());
-        SqlQuery {
-            sources: PhantomData::<S::COMBINED>,
-            query: self.query,
-        }
+impl<T: ?Sized> Display for SqlQuery<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.query.to_string(sea_query::PostgresQueryBuilder)
+        )
     }
+}
 
-    fn join<T: Table>(mut self) -> SqlQuery<S::COMBINED>
-        where
-            // TODO: restrict join to only tables with foreign keys.
-            S: Combine<T>,
-    {
-        // TODO: join on foreign keys, or add them to a list and handle them on .finish()/whatever.
-        // self.query.join(JoinType::Join, T::table(), );
-        SqlQuery {
-            sources: PhantomData::<S::COMBINED>,
-            query: self.query,
-        }
+#[cfg(feature = "postgres")]
+impl<S: Sources + ?Sized> SqlQuery<S> {
+    /// Executes a query, returning the resulting rows.
+    pub fn fetch(
+        self,
+        client: &mut postgres::Client,
+        params: &[&(dyn postgres_types::ToSql + Sync)],
+    ) -> std::result::Result<Vec<postgres::Row>, postgres::Error> {
+        client.query(&self.to_string(), params)
     }
 }
 
@@ -85,9 +102,9 @@ pub struct Sql {
 
 impl Sql {
     pub fn eq<T, V>(col: T, value: V) -> Self
-        where
-            T: sea_query::IntoColumnRef,
-            V: Into<sea_query::Value>,
+    where
+        T: sea_query::IntoColumnRef,
+        V: Into<sea_query::Value>,
     {
         Self {
             cond: sea_query::Cond::all().add(sea_query::Expr::col(col).eq(value)),
@@ -95,10 +112,10 @@ impl Sql {
     }
 
     pub fn equals<T, U, V>(left: T, table: U, right: V) -> Self
-        where
-            T: sea_query::IntoColumnRef,
-            U: sea_query::IntoIden,
-            V: sea_query::IntoIden,
+    where
+        T: sea_query::IntoColumnRef,
+        U: sea_query::IntoIden,
+        V: sea_query::IntoIden,
     {
         Self {
             cond: sea_query::Cond::all().add(sea_query::Expr::col(left).equals(table, right)),
@@ -106,9 +123,9 @@ impl Sql {
     }
 
     pub fn ne<T, V>(col: T, value: V) -> Self
-        where
-            T: sea_query::IntoColumnRef,
-            V: Into<sea_query::Value>,
+    where
+        T: sea_query::IntoColumnRef,
+        V: Into<sea_query::Value>,
     {
         Self {
             cond: sea_query::Cond::all().add(sea_query::Expr::col(col).ne(value)),
@@ -116,8 +133,8 @@ impl Sql {
     }
 
     pub fn is_null<T>(col: T) -> Self
-        where
-            T: sea_query::IntoColumnRef,
+    where
+        T: sea_query::IntoColumnRef,
     {
         Self {
             cond: sea_query::Cond::all().add(sea_query::Expr::col(col).is_null()),
@@ -125,8 +142,8 @@ impl Sql {
     }
 
     pub fn is_not_null<T>(col: T) -> Self
-        where
-            T: sea_query::IntoColumnRef,
+    where
+        T: sea_query::IntoColumnRef,
     {
         Self {
             cond: sea_query::Cond::all().add(sea_query::Expr::col(col).is_not_null()),

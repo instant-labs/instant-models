@@ -1,5 +1,5 @@
-mod table;
 mod query;
+mod table;
 
-pub use table::*;
 pub use query::*;
+pub use table::*;

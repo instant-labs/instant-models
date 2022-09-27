@@ -1,32 +1,37 @@
 use crate::SqlQuery;
 
+/// A SQL table with field identifiers.
 pub trait Table {
-    // TODO: replace sea_query.
-    type Fields;
+    type FieldsType;
+    const FIELDS: Self::FieldsType;
 
     fn query() -> SqlQuery<Self> {
         SqlQuery::new()
     }
 
-    /// Returns a reference to the table definition.
+    /// Returns a reference to the table identifier.
+    // TODO: replace sea_query.
     fn table() -> sea_query::TableRef;
 
-    /// Returns a struct with the SQL column definitions.
-    fn fields() -> Self::Fields;
+    /// Returns a struct with the SQL column identifiers.
+    fn fields() -> Self::FieldsType {
+        Self::FIELDS
+    }
 }
 
-/// Represents one or more SQL [Table].
+/// Represents one or more SQL [Tables](Table).
 pub trait Sources {
     type SOURCES;
 
+    /// All tables in the query. Returns a tuple if more than one table is referenced.
     fn sources() -> Self::SOURCES;
 
-    /// List of all tables currently referenced in the query.
+    /// List of all table identifiers currently referenced in the query.
     fn tables() -> Vec<sea_query::TableRef>;
 }
 
 impl<T: Table + ?Sized> Sources for T {
-    type SOURCES = T::Fields;
+    type SOURCES = T::FieldsType;
 
     fn sources() -> Self::SOURCES {
         T::fields()
@@ -55,7 +60,7 @@ macro_rules! impl_sources_tuple {
     ( $( $name:ident )+ ) => {
         impl<$($name: Table + 'static),+> Sources for ($($name,)+)
         {
-            type SOURCES = ($($name::Fields,)+);
+            type SOURCES = ($($name::FieldsType,)+);
 
             fn sources() -> Self::SOURCES {
                 ($($name::fields(),)+)
@@ -76,9 +81,8 @@ macro_rules! impl_sources_tuple {
     };
 }
 
-// Implement Sources for tuples of tables: (A,), (A,B), (A,B,C), etc.
+// Implement `Sources` for tuples of tables: (A,B), (A,B,C), etc.
 // If you want to join more than ten tables in a single query, open an issue.
-impl_sources_tuple! { A, true }
 impl_sources_tuple! { A B, true }
 impl_sources_tuple! { A B C, true }
 impl_sources_tuple! { A B C D, true }

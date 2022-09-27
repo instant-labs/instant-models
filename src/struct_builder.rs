@@ -29,6 +29,43 @@ impl StructBuilder {
         }
     }
 
+    #[cfg(feature = "postgres")]
+    pub fn new_from_conn(
+        client: &mut postgres::Client,
+        table_name: &str,
+    ) -> Result<Self, anyhow::Error> {
+        let mut struct_bldr = Self::new(table_name.to_string().into());
+        let mut col_index: IndexMap<String, Column> = IndexMap::new();
+        for row in client.query("SELECT column_name, is_nullable, data_type FROM information_schema.columns WHERE table_name = $1;", &[&table_name])? {
+            let column_name: &str = row.get(0);
+            let is_nullable: &str = row.get(1);
+            let data_type: &str = row.get(2);
+            let col = Column::new(column_name.to_string().into(), Type::from_str(data_type)?).set_null(is_nullable == "YES");
+            col_index.insert(column_name.to_string(), col);
+        }
+
+        for row in client.query("SELECT a.column_name, a.constraint_name, b.constraint_type FROM information_schema.constraint_column_usage AS a JOIN information_schema.table_constraints AS b ON a.constraint_name = b.constraint_name WHERE a.table_name = $1", &[&table_name])? {
+            let column_name: &str = row.get(0);
+            let constraint_name: &str = row.get(1);
+            let constraint_type: &str = row.get(2);
+            if let Some(col) = col_index.get_mut(&column_name.to_string()) {
+                match constraint_type {
+                    "UNIQUE" => {col.unique = true;},
+                    "PRIMARY KEY" => {col.primary_key = true;},
+                    other => panic!("unknown constraint type: {}", other),
+                }
+            } else {
+                panic!("got constraint for unknown column: column_name {column_name}, constraint_name {constraint_name} constraint_type {constraint_type}");
+            }
+        }
+
+        for (_, col) in col_index.into_iter() {
+            struct_bldr.add_column(col);
+        }
+
+        Ok(struct_bldr)
+    }
+
     pub fn add_column(&mut self, val: Column) -> &mut Self {
         self.columns.insert(val.name.clone(), val);
         self
@@ -57,8 +94,7 @@ impl StructBuilder {
 
         format!(
             r#"pub struct {}New<'a> {{
-{}}}
-        "#,
+{}}}"#,
             AsUpperCamelCase(&self.name),
             columns
         )
@@ -110,8 +146,7 @@ impl StructBuilder {
             }}
             Ok(())
         }}
-}}
-        "#,
+}}"#,
             AsUpperCamelCase(&self.name),
         )
     }
@@ -164,41 +199,96 @@ impl StructBuilder {
         }
     */
 
-    #[cfg(feature = "postgres")]
-    pub fn new_from_conn(
-        client: &mut postgres::Client,
-        table_name: &str,
-    ) -> Result<Self, anyhow::Error> {
-        let mut struct_bldr = Self::new(table_name.to_string().into());
-        let mut col_index: IndexMap<String, Column> = IndexMap::new();
-        for row in client.query("SELECT column_name, is_nullable, data_type FROM information_schema.columns WHERE table_name = $1;", &[&table_name])? {
-        let column_name: &str = row.get(0);
-        let is_nullable: &str = row.get(1);
-        let data_type: &str = row.get(2);
-        let col = Column::new(column_name.to_string().into(), Type::from_str(data_type)?).set_null(is_nullable == "YES");
-        col_index.insert(column_name.to_string(), col);
-    }
+    /// Generates a helper enum and struct to allow accessing field identifiers when building
+    /// SQL queries.
+    #[cfg(feature = "sql")]
+    pub fn build_field_identifiers(&self) -> String {
+        let mut output: String = String::new();
 
-        for row in client.query("SELECT a.column_name, a.constraint_name, b.constraint_type FROM information_schema.constraint_column_usage AS a JOIN information_schema.table_constraints AS b ON a.constraint_name = b.constraint_name WHERE a.table_name = $1", &[&table_name])? {
-        let column_name: &str = row.get(0);
-        let constraint_name: &str = row.get(1);
-        let constraint_type: &str = row.get(2);
-        if let Some(col) = col_index.get_mut(&column_name.to_string()) {
-            match constraint_type {
-                "UNIQUE" => {col.unique = true;},
-                "PRIMARY KEY" => {col.primary_key = true;},
-                other => panic!("unknown constraint type: {}", other),
-            }
-        } else {
-            panic!("got constraint for unknown column: column_name {column_name}, constraint_name {constraint_name} constraint_type {constraint_type}");
-        }
-    }
+        // Generate enum with sea_query field identifiers: `<NAME>Iden`.
+        // TODO: use a proc-macro to derive this instead?
+        // TODO: replace sea_query.
+        let struct_name = format!("{}", AsUpperCamelCase(&self.name));
+        let enum_name = format!("{}Iden", struct_name);
+        let column_names = self.columns.values().fold(String::new(), |mut acc, col| {
+            acc.push_str(&format!("    {},\n", AsUpperCamelCase(&col.name)));
+            acc
+        });
+        let match_iden_columns = self.columns.values().fold(String::new(), |mut acc, col| {
+            acc.push_str(&format!(
+                "                Self::{} => \"{}\",\n",
+                AsUpperCamelCase(&col.name),
+                &col.name
+            ));
+            acc
+        });
+        output.push_str(&format!(
+            r#"
+#[derive(Copy, Clone)]
+pub enum {} {{
+    Table,
+{}}}
 
-        for (_, col) in col_index.into_iter() {
-            struct_bldr.add_column(col);
-        }
+impl sea_query::Iden for {} {{
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {{
+        write!(
+            s,
+            "{{}}",
+            match self {{
+                Self::Table => "{}",
+{}            }}).expect("{} failed to write");
+    }}
+}}
+"#,
+            enum_name, column_names, enum_name, &self.name, match_iden_columns, enum_name,
+        ));
 
-        Ok(struct_bldr)
+        // Generate fields struct: `<NAME>Fields`.
+        // TODO: derive with proc-macro instead?
+        let fields_name = format!("{}Fields", AsUpperCamelCase(&self.name));
+        let fields = self.columns.values().fold(String::new(), |mut acc, col| {
+            acc.push_str(&format!(
+                "    pub {}: {},\n",
+                AsSnakeCase(&col.name),
+                enum_name
+            ));
+            acc
+        });
+        output.push_str(&format!(
+            r#"
+pub struct {} {{
+{}}}
+"#,
+            fields_name, fields,
+        ));
+
+        // Implement Table for the struct.
+        // TODO: derive with proc-macro instead?
+        let fields_instance = self.columns.values().fold(String::new(), |mut acc, col| {
+            acc.push_str(&format!(
+                "        {}: {}::{},\n",
+                AsSnakeCase(&col.name),
+                enum_name,
+                AsUpperCamelCase(&col.name)
+            ));
+            acc
+        });
+        output.push_str(&format!(
+            r#"
+impl instant_models::Table for {} {{
+    type FieldsType = {};
+    const FIELDS: Self::FieldsType = {} {{
+{}    }};
+
+    fn table() -> sea_query::TableRef {{
+        use sea_query::IntoTableRef;
+        {}::Table.into_table_ref()
+    }}
+}}"#,
+            struct_name, fields_name, fields_name, fields_instance, enum_name,
+        ));
+
+        output
     }
 }
 
@@ -211,8 +301,7 @@ impl std::fmt::Display for StructBuilder {
         write!(
             fmt,
             r#"pub struct {} {{
-{}}}
-        "#,
+{}}}"#,
             AsUpperCamelCase(&self.name),
             columns
         )

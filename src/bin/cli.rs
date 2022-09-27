@@ -45,4 +45,6 @@ fn main() {
     println!("{}", struct_bldr.build_type());
     println!("\n{}", struct_bldr.build_new_type());
     println!("\n{}", struct_bldr.build_type_methods());
+    #[cfg(feature = "sql")]
+    println!("\n{}", struct_bldr.build_field_identifiers());
 }
