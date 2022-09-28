@@ -1,18 +1,10 @@
 # instant-models
 
-Run tests:
-
-```shell
-cargo test -- --nocapture
-```
-
 ## Generate Rust code with the CLI
-
 
 ```shell
 cargo run --bin cli --features="postgres clap sql" -- -t "accounts" > accounts.rs
 ```
-
 
 ```shell
 $ cargo run --bin cli --features="postgres clap sql" -- --help
@@ -99,12 +91,12 @@ let rows: Vec<Row> = Accounts::query()
 
 Start a local, ephemeral Postgres instance:
 
-```bash
+```shell
 docker run -it -p 127.0.0.1:5432:5432 --rm -e POSTGRES_PASSWORD=postgres postgres
 ```
 
 Run all tests:
 
-```bash
-cargo test
+```shell
+cargo test -- --nocapture
 ```

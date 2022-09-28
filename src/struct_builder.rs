@@ -247,11 +247,21 @@ impl sea_query::Iden for {} {{
         // TODO: derive with proc-macro instead?
         let fields_name = format!("{}Fields", AsUpperCamelCase(&self.name));
         let fields = self.columns.values().fold(String::new(), |mut acc, col| {
-            acc.push_str(&format!(
-                "    pub {}: {},\n",
-                AsSnakeCase(&col.name),
-                enum_name
-            ));
+            if col.null {
+                acc.push_str(&format!(
+                    "    pub {}: ::instant_models::Field<Option<{}>, {}>,\n",
+                    AsSnakeCase(&col.name),
+                    col.r#type,
+                    enum_name
+                ));
+            } else {
+                acc.push_str(&format!(
+                    "    pub {}: ::instant_models::Field<{}, {}>,\n",
+                    AsSnakeCase(&col.name),
+                    col.r#type,
+                    enum_name
+                ));
+            }
             acc
         });
         output.push_str(&format!(
@@ -266,8 +276,9 @@ pub struct {} {{
         // TODO: derive with proc-macro instead?
         let fields_instance = self.columns.values().fold(String::new(), |mut acc, col| {
             acc.push_str(&format!(
-                "        {}: {}::{},\n",
+                "        {}: ::instant_models::Field::new(\"{}\", {}::{}),\n",
                 AsSnakeCase(&col.name),
+                col.name,
                 enum_name,
                 AsUpperCamelCase(&col.name)
             ));
@@ -305,5 +316,87 @@ impl std::fmt::Display for StructBuilder {
             AsUpperCamelCase(&self.name),
             columns
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn mock_struct_builder() -> StructBuilder {
+        let mut columns = IndexMap::new();
+        columns.insert(
+            "user_id".into(),
+            Column::new("user_id".into(), Type::from_str("integer").unwrap()),
+        );
+        columns.insert(
+            "username".into(),
+            Column::new("username".into(), Type::from_str("text").unwrap()),
+        );
+        columns.insert(
+            "email".into(),
+            Column::new("email".into(), Type::from_str("text").unwrap()).set_null(true),
+        );
+
+        let constraints = vec![Constraint::PrimaryKey {
+            name: "pk_user_id".into(),
+            columns: vec!["user_id".into()],
+        }];
+
+        StructBuilder {
+            name: "accounts".into(),
+            columns,
+            constraints,
+        }
+    }
+
+    #[test]
+    fn test_build_field_identifiers() {
+        let builder: StructBuilder = mock_struct_builder();
+        assert_eq!(
+            builder.build_field_identifiers(),
+            r##"
+#[derive(Copy, Clone)]
+pub enum AccountsIden {
+    Table,
+    UserId,
+    Username,
+    Email,
+}
+
+impl sea_query::Iden for AccountsIden {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        write!(
+            s,
+            "{}",
+            match self {
+                Self::Table => "accounts",
+                Self::UserId => "user_id",
+                Self::Username => "username",
+                Self::Email => "email",
+            }).expect("AccountsIden failed to write");
+    }
+}
+
+pub struct AccountsFields {
+    pub user_id: ::instant_models::Field<i32, AccountsIden>,
+    pub username: ::instant_models::Field<String, AccountsIden>,
+    pub email: ::instant_models::Field<Option<String>, AccountsIden>,
+}
+
+impl instant_models::Table for Accounts {
+    type FieldsType = AccountsFields;
+    const FIELDS: Self::FieldsType = AccountsFields {
+        user_id: ::instant_models::Field::new("user_id", AccountsIden::UserId),
+        username: ::instant_models::Field::new("username", AccountsIden::Username),
+        email: ::instant_models::Field::new("email", AccountsIden::Email),
+    };
+
+    fn table() -> sea_query::TableRef {
+        use sea_query::IntoTableRef;
+        AccountsIden::Table.into_table_ref()
+    }
+}"##
+        );
     }
 }

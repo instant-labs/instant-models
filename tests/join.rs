@@ -1,4 +1,4 @@
-use instant_models::{Sql, Table};
+use instant_models::{Field, Sql, Table};
 use sea_query::TableRef;
 use std::fmt::Write;
 
@@ -74,23 +74,23 @@ impl sea_query::Iden for AccountsIden {
 }
 
 pub struct AccountsFields {
-    pub user_id: AccountsIden,
-    pub created_on: AccountsIden,
-    pub last_login: AccountsIden,
-    pub username: AccountsIden,
-    pub password: AccountsIden,
-    pub email: AccountsIden,
+    pub user_id: ::instant_models::Field<i32, AccountsIden>,
+    pub created_on: ::instant_models::Field<chrono::naive::NaiveDateTime, AccountsIden>,
+    pub last_login: ::instant_models::Field<Option<chrono::naive::NaiveDateTime>, AccountsIden>,
+    pub username: ::instant_models::Field<String, AccountsIden>,
+    pub password: ::instant_models::Field<String, AccountsIden>,
+    pub email: ::instant_models::Field<String, AccountsIden>,
 }
 
 impl instant_models::Table for Accounts {
     type FieldsType = AccountsFields;
     const FIELDS: Self::FieldsType = AccountsFields {
-        user_id: AccountsIden::UserId,
-        created_on: AccountsIden::CreatedOn,
-        last_login: AccountsIden::LastLogin,
-        username: AccountsIden::Username,
-        password: AccountsIden::Password,
-        email: AccountsIden::Email,
+        user_id: ::instant_models::Field::new("user_id", AccountsIden::UserId),
+        created_on: ::instant_models::Field::new("created_on", AccountsIden::CreatedOn),
+        last_login: ::instant_models::Field::new("last_login", AccountsIden::LastLogin),
+        username: ::instant_models::Field::new("username", AccountsIden::Username),
+        password: ::instant_models::Field::new("password", AccountsIden::Password),
+        email: ::instant_models::Field::new("email", AccountsIden::Email),
     };
 
     fn table() -> sea_query::TableRef {
@@ -131,18 +131,18 @@ impl sea_query::Iden for AccessIden {
 
 pub struct AccessFields {
     pub table: AccessIden,
-    pub user: AccessIden,
-    pub domain: AccessIden,
-    pub role: AccessIden,
+    pub user: Field<i32, AccessIden>,
+    pub domain: Field<i32, AccessIden>,
+    pub role: Field<String, AccessIden>,
 }
 
 impl Table for Access {
     type FieldsType = AccessFields;
     const FIELDS: Self::FieldsType = AccessFields {
         table: AccessIden::Table,
-        user: AccessIden::User,
-        domain: AccessIden::Domain,
-        role: AccessIden::Role,
+        user: Field::new("user", AccessIden::User),
+        domain: Field::new("domain", AccessIden::Domain),
+        role: Field::new("role", AccessIden::Role),
     };
 
     fn table() -> TableRef {
@@ -165,8 +165,8 @@ pub enum ExamplesIden {
 
 pub struct ExamplesFields {
     pub table: ExamplesIden,
-    pub id: ExamplesIden,
-    pub example: ExamplesIden,
+    pub id: Field<i32, ExamplesIden>,
+    pub example: Field<String, ExamplesIden>,
 }
 
 impl sea_query::Iden for ExamplesIden {
@@ -188,8 +188,8 @@ impl Table for Examples {
     type FieldsType = ExamplesFields;
     const FIELDS: Self::FieldsType = ExamplesFields {
         table: ExamplesIden::Table,
-        id: ExamplesIden::Id,
-        example: ExamplesIden::Example,
+        id: Field::new("id", ExamplesIden::Id),
+        example: Field::new("example", ExamplesIden::Example),
     };
 
     fn table() -> TableRef {
@@ -221,7 +221,7 @@ LIMIT 1"#;
         .filter(|(a, acl)| Sql::equals(a.user_id, acl.table, acl.user) & Sql::eq(acl.role, role))
         .from::<Examples>()
         .filter(|(a, .., ex)| Sql::equals(a.user_id, ex.table, ex.id))
-        .select(|(a, ..)| [a.user_id, a.username, a.password, a.email])
+        .select(|(a, ..)| (a.user_id, a.username, a.password, a.email))
         .limit(1)
         .to_string();
 

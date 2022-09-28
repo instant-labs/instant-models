@@ -56,6 +56,9 @@ impl<A: Table, B: Table> Combine<B> for A {
     type COMBINED = (A, B);
 }
 
+/// Implement [Sources] for tuples of [Tables](Table). E.g. (A,B), (A,B,C), etc.
+///
+/// Pass `true` as the last parameter if the tuple can be combined, omit it if not (maximum size).
 macro_rules! impl_sources_tuple {
     ( $( $name:ident )+ ) => {
         impl<$($name: Table),+> Sources for ($($name,)+)
@@ -81,8 +84,7 @@ macro_rules! impl_sources_tuple {
     };
 }
 
-// Implement `Sources` for tuples of tables: (A,B), (A,B,C), etc.
-// If you want to join more than ten tables in a single query, open an issue.
+// If you need to join more than 10 tables in a single query, open an issue.
 impl_sources_tuple! { A B, true }
 impl_sources_tuple! { A B C, true }
 impl_sources_tuple! { A B C D, true }

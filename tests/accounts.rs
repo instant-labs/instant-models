@@ -74,23 +74,23 @@ impl sea_query::Iden for AccountsIden {
 }
 
 pub struct AccountsFields {
-    pub user_id: AccountsIden,
-    pub created_on: AccountsIden,
-    pub last_login: AccountsIden,
-    pub username: AccountsIden,
-    pub password: AccountsIden,
-    pub email: AccountsIden,
+    pub user_id: ::instant_models::Field<i32, AccountsIden>,
+    pub created_on: ::instant_models::Field<chrono::naive::NaiveDateTime, AccountsIden>,
+    pub last_login: ::instant_models::Field<Option<chrono::naive::NaiveDateTime>, AccountsIden>,
+    pub username: ::instant_models::Field<String, AccountsIden>,
+    pub password: ::instant_models::Field<String, AccountsIden>,
+    pub email: ::instant_models::Field<String, AccountsIden>,
 }
 
 impl instant_models::Table for Accounts {
     type FieldsType = AccountsFields;
     const FIELDS: Self::FieldsType = AccountsFields {
-        user_id: AccountsIden::UserId,
-        created_on: AccountsIden::CreatedOn,
-        last_login: AccountsIden::LastLogin,
-        username: AccountsIden::Username,
-        password: AccountsIden::Password,
-        email: AccountsIden::Email,
+        user_id: ::instant_models::Field::new("user_id", AccountsIden::UserId),
+        created_on: ::instant_models::Field::new("created_on", AccountsIden::CreatedOn),
+        last_login: ::instant_models::Field::new("last_login", AccountsIden::LastLogin),
+        username: ::instant_models::Field::new("username", AccountsIden::Username),
+        password: ::instant_models::Field::new("password", AccountsIden::Password),
+        email: ::instant_models::Field::new("email", AccountsIden::Email),
     };
 
     fn table() -> sea_query::TableRef {
@@ -159,7 +159,7 @@ fn test_accounts_insert() {
 
     Accounts::insert_slice(client, &[new_val_1, new_val_2, new_val_3, new_val_4]).unwrap();
 
-    let select_query = Accounts::query().select(|a| [a.user_id, a.username]);
+    let select_query = Accounts::query().select(|a| (a.user_id, a.username));
     assert_eq!(
         select_query.to_string(),
         r#"SELECT "user_id", "username" FROM "accounts""#
@@ -178,12 +178,12 @@ fn test_accounts_insert() {
 #[test]
 fn test_accounts_query() {
     // SELECT single column.
-    let select = Accounts::query().select(|a| [a.user_id]).to_string();
+    let select = Accounts::query().select(|a| (a.user_id,)).to_string();
     assert_eq!(select, r#"SELECT "user_id" FROM "accounts""#);
 
     // SELECT multiple columns.
     let select_multiple = Accounts::query()
-        .select(|a| [a.user_id, a.username, a.email])
+        .select(|a| (a.user_id, a.username, a.email))
         .to_string();
     assert_eq!(
         select_multiple,
@@ -192,7 +192,7 @@ fn test_accounts_query() {
 
     // SELECT WHERE single condition.
     let select_where = Accounts::query()
-        .select(|a| [a.user_id])
+        .select(|a| (a.user_id,))
         .filter(|a| Sql::is_null(a.last_login))
         .to_string();
     assert_eq!(
@@ -202,7 +202,7 @@ fn test_accounts_query() {
 
     // SELECT WHERE AND.
     let select_where_and = Accounts::query()
-        .select(|a| [a.user_id])
+        .select(|a| (a.user_id,))
         .filter(|a| Sql::is_null(a.last_login) & Sql::is_not_null(a.created_on))
         .to_string();
     assert_eq!(
@@ -212,7 +212,7 @@ fn test_accounts_query() {
 
     // SELECT WHERE OR.
     let select_where_or = Accounts::query()
-        .select(|a| [a.user_id])
+        .select(|a| (a.user_id,))
         .filter(|a| Sql::is_null(a.last_login) | Sql::is_not_null(a.created_on))
         .to_string();
     assert_eq!(
@@ -222,7 +222,7 @@ fn test_accounts_query() {
 
     // SELECT WHERE AND OR.
     let select_where_and_or = Accounts::query()
-        .select(|a| [a.user_id])
+        .select(|a| (a.user_id,))
         .filter(|a| {
             Sql::is_null(a.last_login) & (Sql::is_not_null(a.created_on) | Sql::eq(a.user_id, 1))
         })

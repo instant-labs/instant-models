@@ -1,4 +1,4 @@
-use crate::{Combine, Sources, Table};
+use crate::{Combine, Compatible, FieldList, Sources, Table};
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 
@@ -22,13 +22,12 @@ impl<T: Sources + ?Sized> SqlQuery<T> {
         }
     }
 
-    pub fn select<F, C, I>(mut self, columns: F) -> Self
+    pub fn select<F, I>(mut self, columns: F) -> Self
     where
         F: FnOnce(T::SOURCES) -> I,
-        C: sea_query::IntoColumnRef,
-        I: IntoIterator<Item = C>,
+        I: FieldList,
     {
-        self.query.columns(columns(T::sources()));
+        self.query.columns(columns(T::sources()).into_iter());
         self
     }
 
@@ -104,7 +103,7 @@ impl Sql {
     pub fn eq<T, V>(col: T, value: V) -> Self
     where
         T: sea_query::IntoColumnRef,
-        V: Into<sea_query::Value>,
+        V: Compatible<T> + Into<sea_query::Value>,
     {
         Self {
             cond: sea_query::Cond::all().add(sea_query::Expr::col(col).eq(value)),
@@ -115,7 +114,7 @@ impl Sql {
     where
         T: sea_query::IntoColumnRef,
         U: sea_query::IntoIden,
-        V: sea_query::IntoIden,
+        V: Compatible<T> + sea_query::IntoIden,
     {
         Self {
             cond: sea_query::Cond::all().add(sea_query::Expr::col(left).equals(table, right)),
@@ -125,7 +124,7 @@ impl Sql {
     pub fn ne<T, V>(col: T, value: V) -> Self
     where
         T: sea_query::IntoColumnRef,
-        V: Into<sea_query::Value>,
+        V: Compatible<T> + Into<sea_query::Value>,
     {
         Self {
             cond: sea_query::Cond::all().add(sea_query::Expr::col(col).ne(value)),
