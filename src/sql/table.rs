@@ -2,16 +2,20 @@ use crate::SqlQuery;
 
 /// A SQL table with field identifiers.
 pub trait Table {
+    type IdenType: sea_query::Iden;
     type FieldsType;
     const FIELDS: Self::FieldsType;
 
-    fn query() -> SqlQuery<Self> {
+    fn query() -> SqlQuery<Self>
+    where
+        Self: 'static,
+    {
         SqlQuery::new()
     }
 
-    /// Returns a reference to the table identifier.
+    /// Returns the table identifier.
     // TODO: replace sea_query.
-    fn table() -> sea_query::TableRef;
+    fn table() -> Self::IdenType;
 
     /// Returns a struct with the SQL column identifiers.
     fn fields() -> Self::FieldsType {
@@ -30,7 +34,7 @@ pub trait Sources {
     fn tables() -> Vec<sea_query::TableRef>;
 }
 
-impl<T: Table + ?Sized> Sources for T {
+impl<T: Table + 'static + ?Sized> Sources for T {
     type SOURCES = T::FieldsType;
 
     fn sources() -> Self::SOURCES {
@@ -61,7 +65,7 @@ impl<A: Table, B: Table> Combine<B> for A {
 /// Pass `true` as the last parameter if the tuple can be combined, omit it if not (maximum size).
 macro_rules! impl_sources_tuple {
     ( $( $name:ident )+ ) => {
-        impl<$($name: Table),+> Sources for ($($name,)+)
+        impl<$($name: Table + 'static),+> Sources for ($($name,)+)
         {
             type SOURCES = ($($name::FieldsType,)+);
 

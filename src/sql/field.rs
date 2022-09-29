@@ -1,27 +1,35 @@
 use std::borrow::Cow;
 use std::marker::PhantomData;
 
+use crate::Table;
+
 /// SQL column definition with the Rust type.
 // TODO: add table type back-reference?
-pub struct Field<Type, Iden> {
+pub struct Field<Type, Table: crate::Table> {
     pub name: &'static str,
     // TODO: replace sea_query.
-    pub iden: Iden,
+    pub iden: Table::IdenType,
     pub typ: PhantomData<Type>,
+    pub table: PhantomData<Table>,
 }
 
-impl<Type, Iden> Field<Type, Iden> {
-    pub const fn new(name: &'static str, iden: Iden) -> Self {
+impl<Type, Table: crate::Table> Field<Type, Table> {
+    pub const fn new(name: &'static str, iden: Table::IdenType) -> Self {
         Self {
             name,
             iden,
             typ: PhantomData::<Type>,
+            table: PhantomData::<Table>,
         }
+    }
+
+    pub fn table() -> Table::IdenType {
+        Table::table()
     }
 }
 
 // TODO: replace sea_query.
-impl<Type, Iden: sea_query::Iden + 'static> sea_query::IntoIden for Field<Type, Iden> {
+impl<Type, Table: crate::Table + 'static> sea_query::IntoIden for Field<Type, Table> {
     fn into_iden(self) -> sea_query::DynIden {
         self.iden.into_iden()
     }
@@ -65,24 +73,28 @@ impl_field_list!(A.0 B.1 C.2 D.3 E.4 F.5 G.6 H.7 I.8 J.9 K.10 L.11);
 /// Marker trait to indicate which types and fields can be compared.
 pub trait Compatible<Type> {}
 
-impl<Type, Iden1, Iden2> Compatible<Field<Type, Iden1>> for Field<Type, Iden2> {}
-impl<Type, Iden1, Iden2> Compatible<Field<Type, Iden1>> for Field<Option<Type>, Iden2> {}
-impl<Type, Iden1, Iden2> Compatible<Field<Option<Type>, Iden1>> for Field<Type, Iden2> {}
+impl<Type, T1: Table, T2: Table> Compatible<Field<Type, T1>> for Field<Type, T2> {}
 
-impl<Type, Iden> Compatible<Field<Type, Iden>> for Type {}
-impl<Type, Iden> Compatible<Field<Type, Iden>> for Option<Type> {}
-impl<Type, Iden> Compatible<Field<Option<Type>, Iden>> for Type {}
+impl<Type, T1: Table, T2: Table> Compatible<Field<Type, T1>> for Field<Option<Type>, T2> {}
+
+impl<Type, T1: Table, T2: Table> Compatible<Field<Option<Type>, T1>> for Field<Type, T2> {}
+
+impl<Type, T: Table> Compatible<Field<Type, T>> for Type {}
+
+impl<Type, T: Table> Compatible<Field<Type, T>> for Option<Type> {}
+
+impl<Type, T: Table> Compatible<Field<Option<Type>, T>> for Type {}
 
 macro_rules! impl_compatible {
     ( $t:ty | $( $s:ty ),+ ) => ($(
-        impl<Iden> Compatible<Field<$t, Iden>> for $s {}
-        impl<Iden> Compatible<Field<$t, Iden>> for Option<$s> {}
-        impl<Iden> Compatible<Field<Option<$t>, Iden>> for $s {}
-        impl<Iden> Compatible<Field<Option<$t>, Iden>> for Option<$s> {}
+        impl<T: Table> Compatible<Field<$t, T>> for $s {}
+        impl<T: Table> Compatible<Field<$t, T>> for Option<$s> {}
+        impl<T: Table> Compatible<Field<Option<$t>, T>> for $s {}
+        impl<T: Table> Compatible<Field<Option<$t>, T>> for Option<$s> {}
 
-        impl<Iden1, Iden2> Compatible<Field<$t, Iden1>> for Field<$s, Iden2> {}
-        impl<Iden1, Iden2> Compatible<Field<$t, Iden1>> for Field<Option<$s>, Iden2> {}
-        impl<Iden1, Iden2> Compatible<Field<Option<$t>, Iden1>> for Field<$s, Iden2> {}
+        impl<T1: Table, T2: Table> Compatible<Field<$t, T1>> for Field<$s, T2> {}
+        impl<T1: Table, T2: Table> Compatible<Field<$t, T1>> for Field<Option<$s>, T2> {}
+        impl<T1: Table, T2: Table> Compatible<Field<Option<$t>, T1>> for Field<$s, T2> {}
     )*)
 }
 

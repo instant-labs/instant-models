@@ -1,8 +1,10 @@
-use crate::{Column, Constraint, NewValue, Type};
-use heck::{AsSnakeCase, AsUpperCamelCase};
-use indexmap::IndexMap;
 use std::borrow::Cow;
 use std::str::FromStr;
+
+use heck::{AsSnakeCase, AsUpperCamelCase};
+use indexmap::IndexMap;
+
+use crate::{Column, Constraint, NewValue, Type};
 
 #[derive(Debug, PartialEq)]
 pub struct StructBuilder {
@@ -50,8 +52,8 @@ impl StructBuilder {
             let constraint_type: &str = row.get(2);
             if let Some(col) = col_index.get_mut(&column_name.to_string()) {
                 match constraint_type {
-                    "UNIQUE" => {col.unique = true;},
-                    "PRIMARY KEY" => {col.primary_key = true;},
+                    "UNIQUE" => { col.unique = true; }
+                    "PRIMARY KEY" => { col.primary_key = true; }
                     other => panic!("unknown constraint type: {}", other),
                 }
             } else {
@@ -85,7 +87,7 @@ impl StructBuilder {
                         "    pub {},",
                         NewValue {
                             val: col,
-                            lifetime: Some("a")
+                            lifetime: Some("a"),
                         }
                     ));
                     acc.push('\n');
@@ -252,14 +254,14 @@ impl sea_query::Iden for {} {{
                     "    pub {}: ::instant_models::Field<Option<{}>, {}>,\n",
                     AsSnakeCase(&col.name),
                     col.r#type,
-                    enum_name
+                    struct_name
                 ));
             } else {
                 acc.push_str(&format!(
                     "    pub {}: ::instant_models::Field<{}, {}>,\n",
                     AsSnakeCase(&col.name),
                     col.r#type,
-                    enum_name
+                    struct_name
                 ));
             }
             acc
@@ -287,16 +289,16 @@ pub struct {} {{
         output.push_str(&format!(
             r#"
 impl instant_models::Table for {} {{
+    type IdenType = {};
     type FieldsType = {};
     const FIELDS: Self::FieldsType = {} {{
 {}    }};
 
-    fn table() -> sea_query::TableRef {{
-        use sea_query::IntoTableRef;
-        {}::Table.into_table_ref()
+    fn table() -> Self::IdenType {{
+        {}::Table
     }}
 }}"#,
-            struct_name, fields_name, fields_name, fields_instance, enum_name,
+            struct_name, enum_name, fields_name, fields_name, fields_instance, enum_name,
         ));
 
         output
@@ -379,12 +381,13 @@ impl sea_query::Iden for AccountsIden {
 }
 
 pub struct AccountsFields {
-    pub user_id: ::instant_models::Field<i32, AccountsIden>,
-    pub username: ::instant_models::Field<String, AccountsIden>,
-    pub email: ::instant_models::Field<Option<String>, AccountsIden>,
+    pub user_id: ::instant_models::Field<i32, Accounts>,
+    pub username: ::instant_models::Field<String, Accounts>,
+    pub email: ::instant_models::Field<Option<String>, Accounts>,
 }
 
 impl instant_models::Table for Accounts {
+    type IdenType = AccountsIden;
     type FieldsType = AccountsFields;
     const FIELDS: Self::FieldsType = AccountsFields {
         user_id: ::instant_models::Field::new("user_id", AccountsIden::UserId),
@@ -392,9 +395,8 @@ impl instant_models::Table for Accounts {
         email: ::instant_models::Field::new("email", AccountsIden::Email),
     };
 
-    fn table() -> sea_query::TableRef {
-        use sea_query::IntoTableRef;
-        AccountsIden::Table.into_table_ref()
+    fn table() -> Self::IdenType {
+        AccountsIden::Table
     }
 }"##
         );

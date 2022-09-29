@@ -1,4 +1,5 @@
-use crate::{Combine, Compatible, FieldList, Sources, Table};
+use crate::{Combine, Compatible, Field, FieldList, Sources, Table};
+use sea_query::IntoIden;
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 
@@ -44,11 +45,12 @@ impl<T: Sources + ?Sized> SqlQuery<T> {
         self
     }
 
-    pub fn from<O: Table>(mut self) -> SqlQuery<T::COMBINED>
+    pub fn from<O: Table + 'static>(mut self) -> SqlQuery<T::COMBINED>
     where
         T: Combine<O>,
     {
-        self.query.from(O::table());
+        use sea_query::IntoTableRef;
+        self.query.from(O::table().into_table_ref());
         SqlQuery {
             sources: PhantomData::<T::COMBINED>,
             query: self.query,
@@ -100,52 +102,53 @@ pub struct Sql {
 }
 
 impl Sql {
-    pub fn eq<T, V>(col: T, value: V) -> Self
+    pub fn eq<Left, Right>(left: Left, right: Right) -> Self
     where
-        T: sea_query::IntoColumnRef,
-        V: Compatible<T> + Into<sea_query::Value>,
+        Left: Into<FieldRef>,
+        Right: Compatible<Left> + IntoValueOrFieldRef,
     {
+        let FieldRef { table, column } = left.into();
+        let left_col = sea_query::Expr::tbl(table, column);
+        let condition: sea_query::SimpleExpr = match right.into_value_or_field_ref() {
+            ValueOrFieldRef::Value(value) => left_col.eq(value),
+            ValueOrFieldRef::FieldRef(right_col) => {
+                left_col.equals(right_col.table, right_col.column)
+            }
+        };
         Self {
-            cond: sea_query::Cond::all().add(sea_query::Expr::col(col).eq(value)),
+            cond: sea_query::Cond::all().add(condition),
         }
     }
 
-    pub fn equals<T, U, V>(left: T, table: U, right: V) -> Self
+    pub fn ne<Left, Right>(left: Left, right: Right) -> Self
     where
-        T: sea_query::IntoColumnRef,
-        U: sea_query::IntoIden,
-        V: Compatible<T> + sea_query::IntoIden,
+        Left: Into<FieldRef>,
+        Right: Compatible<Left> + Into<sea_query::Value>,
     {
+        let left: FieldRef = left.into();
         Self {
-            cond: sea_query::Cond::all().add(sea_query::Expr::col(left).equals(table, right)),
-        }
-    }
-
-    pub fn ne<T, V>(col: T, value: V) -> Self
-    where
-        T: sea_query::IntoColumnRef,
-        V: Compatible<T> + Into<sea_query::Value>,
-    {
-        Self {
-            cond: sea_query::Cond::all().add(sea_query::Expr::col(col).ne(value)),
+            cond: sea_query::Cond::all()
+                .add(sea_query::Expr::tbl(left.table, left.column).ne(right.into())),
         }
     }
 
     pub fn is_null<T>(col: T) -> Self
     where
-        T: sea_query::IntoColumnRef,
+        T: Into<FieldRef>,
     {
+        let FieldRef { table, column } = col.into();
         Self {
-            cond: sea_query::Cond::all().add(sea_query::Expr::col(col).is_null()),
+            cond: sea_query::Cond::all().add(sea_query::Expr::tbl(table, column).is_null()),
         }
     }
 
     pub fn is_not_null<T>(col: T) -> Self
     where
-        T: sea_query::IntoColumnRef,
+        T: Into<FieldRef>,
     {
+        let FieldRef { table, column } = col.into();
         Self {
-            cond: sea_query::Cond::all().add(sea_query::Expr::col(col).is_not_null()),
+            cond: sea_query::Cond::all().add(sea_query::Expr::tbl(table, column).is_not_null()),
         }
     }
 
@@ -169,5 +172,47 @@ impl std::ops::BitOr for Sql {
         Sql {
             cond: sea_query::Cond::any().add(self.cond).add(rhs.cond),
         }
+    }
+}
+
+/// Field reference with explicit table and column identifiers.
+pub struct FieldRef {
+    table: sea_query::DynIden,
+    column: sea_query::DynIden,
+}
+
+impl<Type, Table: crate::Table + 'static> From<Field<Type, Table>> for FieldRef {
+    fn from(field: Field<Type, Table>) -> FieldRef {
+        FieldRef {
+            table: Table::table().into_iden(),
+            column: field.iden.into_iden(),
+        }
+    }
+}
+
+pub enum ValueOrFieldRef {
+    Value(sea_query::Value),
+    FieldRef(FieldRef),
+}
+
+pub trait IntoValueOrFieldRef {
+    fn into_value_or_field_ref(self) -> ValueOrFieldRef;
+}
+
+impl<Type, Table: crate::Table + 'static> IntoValueOrFieldRef for Field<Type, Table> {
+    fn into_value_or_field_ref(self) -> ValueOrFieldRef {
+        ValueOrFieldRef::FieldRef(FieldRef {
+            table: Table::table().into_iden(),
+            column: self.iden.into_iden(),
+        })
+    }
+}
+
+impl<V> IntoValueOrFieldRef for V
+where
+    V: Into<sea_query::Value>,
+{
+    fn into_value_or_field_ref(self) -> ValueOrFieldRef {
+        ValueOrFieldRef::Value(self.into())
     }
 }

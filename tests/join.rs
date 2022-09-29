@@ -1,5 +1,4 @@
 use instant_models::{Field, Sql, Table};
-use sea_query::TableRef;
 use std::fmt::Write;
 
 // Example manually constructed.
@@ -74,15 +73,16 @@ impl sea_query::Iden for AccountsIden {
 }
 
 pub struct AccountsFields {
-    pub user_id: ::instant_models::Field<i32, AccountsIden>,
-    pub created_on: ::instant_models::Field<chrono::naive::NaiveDateTime, AccountsIden>,
-    pub last_login: ::instant_models::Field<Option<chrono::naive::NaiveDateTime>, AccountsIden>,
-    pub username: ::instant_models::Field<String, AccountsIden>,
-    pub password: ::instant_models::Field<String, AccountsIden>,
-    pub email: ::instant_models::Field<String, AccountsIden>,
+    pub user_id: ::instant_models::Field<i32, Accounts>,
+    pub created_on: ::instant_models::Field<chrono::naive::NaiveDateTime, Accounts>,
+    pub last_login: ::instant_models::Field<Option<chrono::naive::NaiveDateTime>, Accounts>,
+    pub username: ::instant_models::Field<String, Accounts>,
+    pub password: ::instant_models::Field<String, Accounts>,
+    pub email: ::instant_models::Field<String, Accounts>,
 }
 
 impl instant_models::Table for Accounts {
+    type IdenType = AccountsIden;
     type FieldsType = AccountsFields;
     const FIELDS: Self::FieldsType = AccountsFields {
         user_id: ::instant_models::Field::new("user_id", AccountsIden::UserId),
@@ -93,9 +93,8 @@ impl instant_models::Table for Accounts {
         email: ::instant_models::Field::new("email", AccountsIden::Email),
     };
 
-    fn table() -> sea_query::TableRef {
-        use sea_query::IntoTableRef;
-        AccountsIden::Table.into_table_ref()
+    fn table() -> AccountsIden {
+        AccountsIden::Table
     }
 }
 
@@ -130,24 +129,22 @@ impl sea_query::Iden for AccessIden {
 }
 
 pub struct AccessFields {
-    pub table: AccessIden,
-    pub user: Field<i32, AccessIden>,
-    pub domain: Field<i32, AccessIden>,
-    pub role: Field<String, AccessIden>,
+    pub user: Field<i32, Access>,
+    pub domain: Field<i32, Access>,
+    pub role: Field<String, Access>,
 }
 
 impl Table for Access {
+    type IdenType = AccessIden;
     type FieldsType = AccessFields;
     const FIELDS: Self::FieldsType = AccessFields {
-        table: AccessIden::Table,
         user: Field::new("user", AccessIden::User),
         domain: Field::new("domain", AccessIden::Domain),
         role: Field::new("role", AccessIden::Role),
     };
 
-    fn table() -> TableRef {
-        use sea_query::IntoTableRef;
-        AccessIden::Table.into_table_ref()
+    fn table() -> Self::IdenType {
+        AccessIden::Table
     }
 }
 
@@ -164,9 +161,8 @@ pub enum ExamplesIden {
 }
 
 pub struct ExamplesFields {
-    pub table: ExamplesIden,
-    pub id: Field<i32, ExamplesIden>,
-    pub example: Field<String, ExamplesIden>,
+    pub id: Field<i32, Examples>,
+    pub example: Field<String, Examples>,
 }
 
 impl sea_query::Iden for ExamplesIden {
@@ -185,16 +181,15 @@ impl sea_query::Iden for ExamplesIden {
 }
 
 impl Table for Examples {
+    type IdenType = ExamplesIden;
     type FieldsType = ExamplesFields;
     const FIELDS: Self::FieldsType = ExamplesFields {
-        table: ExamplesIden::Table,
         id: Field::new("id", ExamplesIden::Id),
         example: Field::new("example", ExamplesIden::Example),
     };
 
-    fn table() -> TableRef {
-        use sea_query::IntoTableRef;
-        ExamplesIden::Table.into_table_ref()
+    fn table() -> ExamplesIden {
+        ExamplesIden::Table
     }
 }
 
@@ -202,10 +197,10 @@ impl Table for Examples {
 fn test_query_join() {
     let expected = r#"SELECT "user_id", "username", "password", "email"
 FROM "accounts", "access", "examples"
-WHERE "username" = 'foo'
-AND ("last_login" IS NOT NULL OR "created_on" <> '1970-01-01 00:00:00')
-AND ("user_id" = "access"."user" AND "role" = 'DomainAdmin')
-AND "user_id" = "examples"."id"
+WHERE "accounts"."username" = 'foo'
+AND ("accounts"."last_login" IS NOT NULL OR "accounts"."created_on" <> '1970-01-01 00:00:00')
+AND ("accounts"."user_id" = "access"."user" AND "access"."role" = 'DomainAdmin')
+AND "accounts"."user_id" = "examples"."id"
 LIMIT 1"#;
 
     let user = "foo";
@@ -218,9 +213,9 @@ LIMIT 1"#;
                 & (Sql::is_not_null(a.last_login) | Sql::ne(a.created_on, timestamp))
         })
         .from::<Access>()
-        .filter(|(a, acl)| Sql::equals(a.user_id, acl.table, acl.user) & Sql::eq(acl.role, role))
+        .filter(|(a, acl)| Sql::eq(a.user_id, acl.user) & Sql::eq(acl.role, role))
         .from::<Examples>()
-        .filter(|(a, .., ex)| Sql::equals(a.user_id, ex.table, ex.id))
+        .filter(|(a, .., ex)| Sql::eq(a.user_id, ex.id))
         .select(|(a, ..)| (a.user_id, a.username, a.password, a.email))
         .limit(1)
         .to_string();

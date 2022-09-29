@@ -74,15 +74,16 @@ impl sea_query::Iden for AccountsIden {
 }
 
 pub struct AccountsFields {
-    pub user_id: ::instant_models::Field<i32, AccountsIden>,
-    pub created_on: ::instant_models::Field<chrono::naive::NaiveDateTime, AccountsIden>,
-    pub last_login: ::instant_models::Field<Option<chrono::naive::NaiveDateTime>, AccountsIden>,
-    pub username: ::instant_models::Field<String, AccountsIden>,
-    pub password: ::instant_models::Field<String, AccountsIden>,
-    pub email: ::instant_models::Field<String, AccountsIden>,
+    pub user_id: ::instant_models::Field<i32, Accounts>,
+    pub created_on: ::instant_models::Field<chrono::naive::NaiveDateTime, Accounts>,
+    pub last_login: ::instant_models::Field<Option<chrono::naive::NaiveDateTime>, Accounts>,
+    pub username: ::instant_models::Field<String, Accounts>,
+    pub password: ::instant_models::Field<String, Accounts>,
+    pub email: ::instant_models::Field<String, Accounts>,
 }
 
 impl instant_models::Table for Accounts {
+    type IdenType = AccountsIden;
     type FieldsType = AccountsFields;
     const FIELDS: Self::FieldsType = AccountsFields {
         user_id: ::instant_models::Field::new("user_id", AccountsIden::UserId),
@@ -93,9 +94,8 @@ impl instant_models::Table for Accounts {
         email: ::instant_models::Field::new("email", AccountsIden::Email),
     };
 
-    fn table() -> sea_query::TableRef {
-        use sea_query::IntoTableRef;
-        AccountsIden::Table.into_table_ref()
+    fn table() -> AccountsIden {
+        AccountsIden::Table
     }
 }
 
@@ -197,7 +197,7 @@ fn test_accounts_query() {
         .to_string();
     assert_eq!(
         select_where,
-        r#"SELECT "user_id" FROM "accounts" WHERE "last_login" IS NULL"#
+        r#"SELECT "user_id" FROM "accounts" WHERE "accounts"."last_login" IS NULL"#
     );
 
     // SELECT WHERE AND.
@@ -207,7 +207,7 @@ fn test_accounts_query() {
         .to_string();
     assert_eq!(
         select_where_and,
-        r#"SELECT "user_id" FROM "accounts" WHERE "last_login" IS NULL AND "created_on" IS NOT NULL"#
+        r#"SELECT "user_id" FROM "accounts" WHERE "accounts"."last_login" IS NULL AND "accounts"."created_on" IS NOT NULL"#
     );
 
     // SELECT WHERE OR.
@@ -217,7 +217,7 @@ fn test_accounts_query() {
         .to_string();
     assert_eq!(
         select_where_or,
-        r#"SELECT "user_id" FROM "accounts" WHERE "last_login" IS NULL OR "created_on" IS NOT NULL"#
+        r#"SELECT "user_id" FROM "accounts" WHERE "accounts"."last_login" IS NULL OR "accounts"."created_on" IS NOT NULL"#
     );
 
     // SELECT WHERE AND OR.
@@ -229,6 +229,6 @@ fn test_accounts_query() {
         .to_string();
     assert_eq!(
         select_where_and_or,
-        r#"SELECT "user_id" FROM "accounts" WHERE "last_login" IS NULL AND ("created_on" IS NOT NULL OR "user_id" = 1)"#
+        r#"SELECT "user_id" FROM "accounts" WHERE "accounts"."last_login" IS NULL AND ("accounts"."created_on" IS NOT NULL OR "accounts"."user_id" = 1)"#
     );
 }
