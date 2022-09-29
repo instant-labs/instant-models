@@ -57,13 +57,17 @@ impl<T: Sources + ?Sized> SqlQuery<T> {
         }
     }
 
-    pub fn join<O: Table>(mut self) -> SqlQuery<T::COMBINED>
+    pub fn join<O: Table + 'static, F>(mut self, on: F) -> SqlQuery<T::COMBINED>
     where
         // TODO: restrict join to only tables with foreign keys.
         T: Combine<O>,
+        T::COMBINED: Sources,
+        F: FnOnce(<T::COMBINED as Sources>::SOURCES) -> Sql,
     {
-        // TODO: join on foreign keys, or add them to a list and handle them on .finish()/whatever.
-        // self.query.join(sea_query::JoinType::Join, T::table(), );
+        // TODO: join on foreign keys automatically, or add them to a list and handle them later.
+        let on_condition: Sql = on(<T::COMBINED as Sources>::sources());
+        self.query
+            .join(sea_query::JoinType::Join, O::table(), on_condition.cond);
         SqlQuery {
             sources: PhantomData::<T::COMBINED>,
             query: self.query,
@@ -88,7 +92,7 @@ impl<S: Sources + ?Sized> SqlQuery<S> {
         self,
         client: &mut postgres::Client,
         params: &[&(dyn postgres_types::ToSql + Sync)],
-    ) -> std::result::Result<Vec<postgres::Row>, postgres::Error> {
+    ) -> Result<Vec<postgres::Row>, postgres::Error> {
         client.query(&self.to_string(), params)
     }
 }

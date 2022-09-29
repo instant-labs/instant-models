@@ -199,7 +199,7 @@ impl Table for Examples {
 }
 
 #[test]
-fn test_query_join() {
+fn test_query_from_chain() {
     let expected = r#"SELECT "user_id", "username", "password", "email"
 FROM "accounts", "access", "examples"
 WHERE "accounts"."username" = 'foo'
@@ -221,6 +221,36 @@ LIMIT 1"#;
         .filter(|(a, acl)| Sql::eq(a.user_id, acl.user) & Sql::eq(acl.role, role))
         .from::<Examples>()
         .filter(|(a, .., ex)| Sql::eq(a.user_id, ex.id) & Sql::is(ex.active, true))
+        .select(|(a, ..)| (a.user_id, a.username, a.password, a.email))
+        .limit(1)
+        .to_string();
+
+    assert_eq!(query, expected.replace('\n', " "));
+}
+
+#[test]
+fn test_query_join_chain() {
+    let expected = r#"SELECT "user_id", "username", "password", "email"
+FROM "accounts"
+JOIN "access" ON "accounts"."user_id" = "access"."user"
+JOIN "examples" ON "accounts"."user_id" = "examples"."id"
+WHERE "accounts"."username" = 'foo'
+AND ("accounts"."last_login" IS NOT NULL OR "accounts"."created_on" <> '1970-01-01 00:00:00')
+AND ("examples"."active" IS TRUE AND "access"."role" = 'DomainAdmin')
+LIMIT 1"#;
+
+    let user = "foo";
+    let role = "DomainAdmin";
+    let timestamp = chrono::NaiveDateTime::from_timestamp(0, 0);
+
+    let query = Accounts::query()
+        .filter(|a| {
+            Sql::eq(a.username, user)
+                & (Sql::is_not_null(a.last_login) | Sql::ne(a.created_on, timestamp))
+        })
+        .join::<Access, _>(|(a, acl)| Sql::eq(a.user_id, acl.user))
+        .join::<Examples, _>(|(a, .., ex)| Sql::eq(a.user_id, ex.id))
+        .filter(|(.., acl, ex)| Sql::is(ex.active, true) & Sql::eq(acl.role, role))
         .select(|(a, ..)| (a.user_id, a.username, a.password, a.email))
         .limit(1)
         .to_string();
