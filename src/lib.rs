@@ -1,8 +1,11 @@
-mod struct_builder;
+pub use column::*;
+#[cfg(feature = "sql")]
+pub use sql::*;
 pub use struct_builder::*;
+pub use types::*;
 
 mod column;
-pub use column::*;
-
+#[cfg(feature = "sql")]
+mod sql;
+mod struct_builder;
 mod types;
-pub use types::*;

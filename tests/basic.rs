@@ -28,6 +28,8 @@ fn create_cargo_project(builder: StructBuilder) -> Result<(), anyhow::Error> {
     file.write_all(builder.build_type().as_bytes())?;
     file.write_all(builder.build_new_type().as_bytes())?;
     file.write_all(builder.build_type_methods().as_bytes())?;
+    #[cfg(feature = "sql")]
+    file.write_all(builder.build_field_identifiers().as_bytes())?;
     drop(file);
     let mut manifest_file = OpenOptions::new()
         .write(true)
