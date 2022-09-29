@@ -1,5 +1,5 @@
 use crate::{Combine, Compatible, Field, FieldList, Sources, Table};
-use sea_query::IntoIden;
+use sea_query::{BinOper, IntoIden};
 use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 
@@ -107,8 +107,7 @@ impl Sql {
         Left: Into<FieldRef>,
         Right: Compatible<Left> + IntoValueOrFieldRef,
     {
-        let FieldRef { table, column } = left.into();
-        let left_col = sea_query::Expr::tbl(table, column);
+        let left_col = left.into().into_tbl_expr();
         let condition: sea_query::SimpleExpr = match right.into_value_or_field_ref() {
             ValueOrFieldRef::Value(value) => left_col.eq(value),
             ValueOrFieldRef::FieldRef(right_col) => {
@@ -123,12 +122,105 @@ impl Sql {
     pub fn ne<Left, Right>(left: Left, right: Right) -> Self
     where
         Left: Into<FieldRef>,
+        Right: Compatible<Left> + IntoValueOrFieldRef,
+    {
+        let left_col = left.into().into_tbl_expr();
+        let condition: sea_query::SimpleExpr = match right.into_value_or_field_ref() {
+            ValueOrFieldRef::Value(value) => left_col.ne(value),
+            ValueOrFieldRef::FieldRef(right_col) => {
+                left_col.binary(BinOper::NotEqual, right_col.into_tbl_expr())
+            }
+        };
+        Self {
+            cond: sea_query::Cond::all().add(condition),
+        }
+    }
+
+    pub fn gt<Left, Right>(left: Left, right: Right) -> Self
+    where
+        Left: Into<FieldRef>,
+        Right: Compatible<Left> + IntoValueOrFieldRef,
+    {
+        let left_col = left.into().into_tbl_expr();
+        let condition: sea_query::SimpleExpr = match right.into_value_or_field_ref() {
+            ValueOrFieldRef::Value(value) => left_col.gt(value),
+            ValueOrFieldRef::FieldRef(right_col) => {
+                left_col.greater_than(right_col.into_tbl_expr())
+            }
+        };
+        Self {
+            cond: sea_query::Cond::all().add(condition),
+        }
+    }
+
+    pub fn gte<Left, Right>(left: Left, right: Right) -> Self
+    where
+        Left: Into<FieldRef>,
+        Right: Compatible<Left> + IntoValueOrFieldRef,
+    {
+        let left_col = left.into().into_tbl_expr();
+        let condition: sea_query::SimpleExpr = match right.into_value_or_field_ref() {
+            ValueOrFieldRef::Value(value) => left_col.gte(value),
+            ValueOrFieldRef::FieldRef(right_col) => {
+                left_col.greater_or_equal(right_col.into_tbl_expr())
+            }
+        };
+        Self {
+            cond: sea_query::Cond::all().add(condition),
+        }
+    }
+
+    pub fn lt<Left, Right>(left: Left, right: Right) -> Self
+    where
+        Left: Into<FieldRef>,
+        Right: Compatible<Left> + IntoValueOrFieldRef,
+    {
+        let left_col = left.into().into_tbl_expr();
+        let condition: sea_query::SimpleExpr = match right.into_value_or_field_ref() {
+            ValueOrFieldRef::Value(value) => left_col.lt(value),
+            ValueOrFieldRef::FieldRef(right_col) => left_col.less_than(right_col.into_tbl_expr()),
+        };
+        Self {
+            cond: sea_query::Cond::all().add(condition),
+        }
+    }
+
+    pub fn lte<Left, Right>(left: Left, right: Right) -> Self
+    where
+        Left: Into<FieldRef>,
+        Right: Compatible<Left> + IntoValueOrFieldRef,
+    {
+        let left_col = left.into().into_tbl_expr();
+        let condition: sea_query::SimpleExpr = match right.into_value_or_field_ref() {
+            ValueOrFieldRef::Value(value) => left_col.lte(value),
+            ValueOrFieldRef::FieldRef(right_col) => {
+                left_col.less_or_equal(right_col.into_tbl_expr())
+            }
+        };
+        Self {
+            cond: sea_query::Cond::all().add(condition),
+        }
+    }
+
+    pub fn is<Left, Right>(left: Left, right: Right) -> Self
+    where
+        Left: Into<FieldRef>,
         Right: Compatible<Left> + Into<sea_query::Value>,
     {
-        let left: FieldRef = left.into();
+        let left_col = left.into().into_tbl_expr();
         Self {
-            cond: sea_query::Cond::all()
-                .add(sea_query::Expr::tbl(left.table, left.column).ne(right.into())),
+            cond: sea_query::Cond::all().add(left_col.is(right.into())),
+        }
+    }
+
+    pub fn is_not<Left, Right>(left: Left, right: Right) -> Self
+    where
+        Left: Into<FieldRef>,
+        Right: Compatible<Left> + Into<sea_query::Value>,
+    {
+        let left_col = left.into().into_tbl_expr();
+        Self {
+            cond: sea_query::Cond::all().add(left_col.is_not(right.into())),
         }
     }
 
@@ -136,9 +228,9 @@ impl Sql {
     where
         T: Into<FieldRef>,
     {
-        let FieldRef { table, column } = col.into();
+        let column = col.into().into_tbl_expr();
         Self {
-            cond: sea_query::Cond::all().add(sea_query::Expr::tbl(table, column).is_null()),
+            cond: sea_query::Cond::all().add(column.is_null()),
         }
     }
 
@@ -146,9 +238,9 @@ impl Sql {
     where
         T: Into<FieldRef>,
     {
-        let FieldRef { table, column } = col.into();
+        let column = col.into().into_tbl_expr();
         Self {
-            cond: sea_query::Cond::all().add(sea_query::Expr::tbl(table, column).is_not_null()),
+            cond: sea_query::Cond::all().add(column.is_not_null()),
         }
     }
 
@@ -179,6 +271,12 @@ impl std::ops::BitOr for Sql {
 pub struct FieldRef {
     table: sea_query::DynIden,
     column: sea_query::DynIden,
+}
+
+impl FieldRef {
+    pub fn into_tbl_expr(self) -> sea_query::Expr {
+        sea_query::Expr::tbl(self.table, self.column)
+    }
 }
 
 impl<Type, Table: crate::Table + 'static> From<Field<Type, Table>> for FieldRef {

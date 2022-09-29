@@ -151,6 +151,7 @@ impl Table for Access {
 pub struct Examples {
     pub id: i32,
     pub example: String,
+    pub active: bool,
 }
 
 #[derive(Copy, Clone)]
@@ -158,11 +159,13 @@ pub enum ExamplesIden {
     Table,
     Id,
     Example,
+    Active,
 }
 
 pub struct ExamplesFields {
     pub id: Field<i32, Examples>,
     pub example: Field<String, Examples>,
+    pub active: Field<bool, Examples>,
 }
 
 impl sea_query::Iden for ExamplesIden {
@@ -174,6 +177,7 @@ impl sea_query::Iden for ExamplesIden {
                 Self::Table => "examples",
                 Self::Id => "id",
                 Self::Example => "example",
+                Self::Active => "active",
             }
         )
         .expect("ExampleIden failed to write");
@@ -186,6 +190,7 @@ impl Table for Examples {
     const FIELDS: Self::FieldsType = ExamplesFields {
         id: Field::new("id", ExamplesIden::Id),
         example: Field::new("example", ExamplesIden::Example),
+        active: Field::new("active", ExamplesIden::Active),
     };
 
     fn table() -> ExamplesIden {
@@ -200,7 +205,7 @@ FROM "accounts", "access", "examples"
 WHERE "accounts"."username" = 'foo'
 AND ("accounts"."last_login" IS NOT NULL OR "accounts"."created_on" <> '1970-01-01 00:00:00')
 AND ("accounts"."user_id" = "access"."user" AND "access"."role" = 'DomainAdmin')
-AND "accounts"."user_id" = "examples"."id"
+AND ("accounts"."user_id" = "examples"."id" AND "examples"."active" IS TRUE)
 LIMIT 1"#;
 
     let user = "foo";
@@ -215,7 +220,7 @@ LIMIT 1"#;
         .from::<Access>()
         .filter(|(a, acl)| Sql::eq(a.user_id, acl.user) & Sql::eq(acl.role, role))
         .from::<Examples>()
-        .filter(|(a, .., ex)| Sql::eq(a.user_id, ex.id))
+        .filter(|(a, .., ex)| Sql::eq(a.user_id, ex.id) & Sql::is(ex.active, true))
         .select(|(a, ..)| (a.user_id, a.username, a.password, a.email))
         .limit(1)
         .to_string();
