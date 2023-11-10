@@ -73,7 +73,7 @@ impl StructBuilder {
             .map(|c| c.name.as_ref())
             .collect::<Vec<&str>>();
         for p in parameters.iter() {
-            sql_statement.push_str(*p);
+            sql_statement.push_str(p);
             sql_statement.push_str(", ");
         }
         if sql_statement.ends_with(", ") {

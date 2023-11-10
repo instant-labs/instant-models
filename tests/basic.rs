@@ -103,7 +103,7 @@ fn test_basic() {
     let tmpdir = tempfile::tempdir().unwrap();
     std::env::set_current_dir(tmpdir.path()).unwrap();
     let ret = create_cargo_project(struct_bldr);
-    std::env::set_current_dir(&cwd).unwrap();
+    std::env::set_current_dir(cwd).unwrap();
     tmpdir.close().unwrap();
     ret.unwrap();
 }
