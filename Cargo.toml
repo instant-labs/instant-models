@@ -9,7 +9,7 @@ required-features = ["postgres", "clap"]
 
 [dependencies]
 anyhow = "1"
-clap = { version = "3.2.5", features = ["derive"], optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
 heck = "0.4.0"
 indexmap = "2"
 postgres = { version = "0.19.3", optional = true }
