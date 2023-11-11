@@ -69,54 +69,6 @@ impl Table {
             constraints: Vec::default(),
         }
     }
-
-    /*
-        pub fn build_new_type_methods(&self) -> String {
-            let lifetime: &str = "a";
-            let mut parameters =
-                self.columns
-                    .values()
-                    .filter(|c| !c.primary_key)
-                    .fold(String::new(), |mut acc, col| {
-                        acc.push_str(&format!(
-                            "{}",
-                            NewValue {
-                                val: col,
-                                lifetime: Some(lifetime)
-                            }
-                        ));
-                        acc.push_str(", ");
-                        acc
-                    });
-            if parameters.ends_with(", ") {
-                parameters.pop();
-                parameters.pop();
-            }
-
-            let mut fields =
-                self.columns
-                    .values()
-                    .filter(|c| !c.primary_key)
-                    .fold(String::new(), |mut acc, col| {
-                        acc.push_str(&format!("{}, ", AsSnakeCase(&col.name)));
-                        acc
-                    });
-            if fields.ends_with(", ") {
-                fields.pop();
-                fields.pop();
-            }
-
-            format!(
-                r#"impl<'{lifetime}> {}New<'{lifetime}> {{
-        pub fn new({parameters}) -> Self {{
-            Self {{ {fields} }}
-        }}
-    }}
-            "#,
-                AsUpperCamelCase(&self.name),
-            )
-        }
-    */
 }
 
 impl fmt::Display for Table {
