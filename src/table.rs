@@ -207,17 +207,13 @@ impl Table {
 
 impl fmt::Display for Table {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        let columns = self.columns.values().fold(String::new(), |mut acc, col| {
-            acc.push_str(&format!("    pub {},\n", col));
-            acc
-        });
-        write!(
-            fmt,
-            r#"pub struct {} {{
-{}}}
-        "#,
-            AsUpperCamelCase(&self.name),
-            columns
-        )
+        fmt.write_fmt(format_args!(
+            "pub struct {} {{\n",
+            AsUpperCamelCase(&self.name)
+        ))?;
+        for col in self.columns.values() {
+            fmt.write_fmt(format_args!("    pub {col},\n"))?;
+        }
+        fmt.write_str("}\n")
     }
 }
