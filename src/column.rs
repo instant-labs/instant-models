@@ -6,12 +6,6 @@ use heck::AsSnakeCase;
 use crate::types::{Type, TypeAsRef};
 
 #[derive(Debug, PartialEq)]
-pub struct ForeignKey {
-    to_table: Cow<'static, str>,
-    columns: Vec<Cow<'static, str>>,
-}
-
-#[derive(Debug, PartialEq)]
 pub struct Column {
     pub name: Cow<'static, str>,
     pub r#type: Type,
@@ -98,4 +92,10 @@ pub enum Constraint {
         name: Cow<'static, str>,
         columns: Vec<Cow<'static, str>>,
     },
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ForeignKey {
+    to_table: Cow<'static, str>,
+    columns: Vec<Cow<'static, str>>,
 }
