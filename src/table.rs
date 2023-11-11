@@ -69,15 +69,6 @@ impl Table {
         }
     }
 
-    pub fn add_column(&mut self, val: Column) -> &mut Self {
-        self.columns.insert(val.name.clone(), val);
-        self
-    }
-
-    pub fn build_type(&self) -> String {
-        format!("{}", self)
-    }
-
     pub fn build_new_type(&self) -> String {
         let columns =
             self.columns
