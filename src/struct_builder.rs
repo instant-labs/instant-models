@@ -11,21 +11,11 @@ use tokio_postgres::Client;
 use crate::column::{Column, Constraint, NewValue};
 use crate::types::Type;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct StructBuilder {
     pub name: Cow<'static, str>,
     pub columns: IndexMap<Cow<'static, str>, Column>,
     pub constraints: Vec<Constraint>,
-}
-
-impl Default for StructBuilder {
-    fn default() -> Self {
-        Self {
-            name: String::new().into(),
-            columns: IndexMap::new(),
-            constraints: vec![],
-        }
-    }
 }
 
 impl StructBuilder {
