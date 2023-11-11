@@ -19,12 +19,11 @@ impl FromStr for Type {
             inner: match val {
                 "bigint" => PgType::INT8,
                 "integer" => PgType::INT4,
-                "text" => PgType::TEXT,
+                "text" | "character varying" => PgType::TEXT,
                 "text[]" => PgType::TEXT_ARRAY,
                 "bytea" => PgType::BYTEA,
                 "bytea[]" => PgType::BYTEA_ARRAY,
                 "boolean" => PgType::BOOL,
-                "character varying" => PgType::TEXT,
                 "timestamp with time zone" => PgType::TIMESTAMPTZ,
                 "timestamp without time zone" => PgType::TIMESTAMP,
                 _ => todo!("FromStr for {val:?}"),
