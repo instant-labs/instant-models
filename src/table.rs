@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt;
 #[cfg(feature = "postgres")]
 use std::str::FromStr;
 
@@ -204,8 +205,8 @@ impl Table {
     */
 }
 
-impl std::fmt::Display for Table {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for Table {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let columns = self.columns.values().fold(String::new(), |mut acc, col| {
             acc.push_str(&format!("    pub {},\n", col));
             acc

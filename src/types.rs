@@ -1,3 +1,4 @@
+use std::fmt;
 use std::str::FromStr;
 
 use heck::AsUpperCamelCase;
@@ -32,8 +33,8 @@ impl FromStr for Type {
     }
 }
 
-impl std::fmt::Display for Type {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for Type {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Builtin {
                 inner: PgType::INT8,
@@ -109,8 +110,8 @@ pub struct TypeAsRef<'a> {
     pub val: &'a Type,
 }
 
-impl std::fmt::Display for TypeAsRef<'_> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for TypeAsRef<'_> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Self { val, lifetime } = self;
         match val {
             Type::Builtin {

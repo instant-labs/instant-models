@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::fmt;
 
 use heck::AsSnakeCase;
 
@@ -37,8 +38,8 @@ impl Column {
     }
 }
 
-impl std::fmt::Display for Column {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for Column {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if self.null {
             write!(fmt, "{}: Option<{}>", AsSnakeCase(&self.name), self.r#type)
         } else {
@@ -52,8 +53,8 @@ pub struct NewValue<'a> {
     pub val: &'a Column,
 }
 
-impl std::fmt::Display for NewValue<'_> {
-    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for NewValue<'_> {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if self.val.null && self.val.default.is_some() {
             panic!(
                 "Column `{}` is both NULL and takes a default value `{}`",
