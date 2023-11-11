@@ -31,7 +31,7 @@ impl Table {
         for row in client.query(sql, &[&name]).await? {
             let name = Arc::<str>::from(row.get::<_, &str>(0));
             let r#type = match row.get::<_, &str>(1) {
-                "USER-DEFINED" => Type::from_postgres(row.get(3), client).await?,
+                "USER-DEFINED" => Type::from_postgres_by_name(row.get(3), client).await?,
                 other => Type::from_str(other)?,
             };
 

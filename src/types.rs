@@ -15,7 +15,10 @@ pub enum Type {
 }
 
 impl Type {
-    pub async fn from_postgres(name: &str, client: &Client) -> Result<Self, tokio_postgres::Error> {
+    pub async fn from_postgres_by_name(
+        name: &str,
+        client: &Client,
+    ) -> Result<Self, tokio_postgres::Error> {
         let sql = "SELECT oid, typtype FROM pg_catalog.pg_type WHERE typname = $1";
         let row = client.query_one(sql, &[&name]).await?;
         Ok(match row.get::<_, i8>(1) {
