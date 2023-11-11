@@ -70,58 +70,6 @@ impl Table {
         }
     }
 
-    pub fn build_type_methods(&self) -> String {
-        let mut sql_statement = format!("INSERT INTO {}(", self.name);
-        let parameters = self
-            .columns
-            .values()
-            .filter(|c| !c.primary_key)
-            .map(|c| c.name.as_ref())
-            .collect::<Vec<&str>>();
-        for p in parameters.iter() {
-            sql_statement.push_str(p);
-            sql_statement.push_str(", ");
-        }
-        if sql_statement.ends_with(", ") {
-            sql_statement.pop();
-            sql_statement.pop();
-        }
-        sql_statement.push_str(") VALUES(");
-        for i in 0..parameters.len() {
-            sql_statement.push_str(&format!("${}, ", i + 1));
-        }
-        if sql_statement.ends_with(", ") {
-            sql_statement.pop();
-            sql_statement.pop();
-        }
-        sql_statement.push_str(");");
-        let mut fields =
-            self.columns
-                .values()
-                .filter(|c| !c.primary_key)
-                .fold(String::new(), |mut acc, col| {
-                    acc.push_str(&format!("&entry.{}, ", AsSnakeCase(&col.name)));
-                    acc
-                });
-        if fields.ends_with(", ") {
-            fields.pop();
-            fields.pop();
-        }
-        format!(
-            r#"impl {0} {{
-        pub fn insert_slice(client: &mut postgres::Client, slice: &[{0}New<'_>]) -> Result<(), postgres::Error> {{
-            let statement = client.prepare("{sql_statement}")?;
-            for entry in slice {{
-                client.execute(&statement, &[{fields}])?;
-            }}
-            Ok(())
-        }}
-}}
-        "#,
-            AsUpperCamelCase(&self.name),
-        )
-    }
-
     /*
         pub fn build_new_type_methods(&self) -> String {
             let lifetime: &str = "a";
@@ -173,19 +121,89 @@ impl Table {
 
 impl fmt::Display for Table {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.write_fmt(format_args!(
-            "pub struct {} {{\n",
-            AsUpperCamelCase(&self.name)
-        ))?;
+        let ty_name = AsUpperCamelCase(&self.name);
+        fmt.write_fmt(format_args!("pub struct {ty_name} {{\n"))?;
         for col in self.columns.values() {
             fmt.write_fmt(format_args!("    pub {col},\n"))?;
         }
         fmt.write_str("}\n\n")?;
 
+        // Multi-value `insert()` method
         fmt.write_fmt(format_args!(
-            "pub struct New{}<'a> {{\n",
-            AsUpperCamelCase(&self.name)
+            r#"impl {ty_name} {{
+    pub async fn insert(slice: &[New{ty_name}<'_>]) -> Result<(), tokio_postgres::Error> {{
+        let statement = client.prepare(
+            "INSERT INTO {} (
+"#,
+            &self.name
         ))?;
+
+        let num = self.columns.len();
+        for (i, col) in self.columns.values().enumerate() {
+            if col.name.as_ref() == "id" {
+                continue;
+            }
+
+            fmt.write_fmt(format_args!("                {}", col.name))?;
+            if i == num - 1 {
+                fmt.write_str("\n")?;
+            } else {
+                fmt.write_str(",\n")?;
+            }
+        }
+
+        fmt.write_str("            ) VALUES (")?;
+        let mut skipped = 0;
+        for (i, col) in self.columns.values().enumerate() {
+            if col.name.as_ref() == "id" {
+                skipped += 1;
+                continue;
+            }
+
+            let idx = i + 1 - skipped;
+            if i == num - 1 {
+                fmt.write_fmt(format_args!("${idx}"))?;
+            } else {
+                fmt.write_fmt(format_args!("${idx}, "))?;
+            }
+        }
+        fmt.write_str(
+            r#")"
+        ).await?;
+        for entry in slice {
+            client.execute(&statement, &[
+"#,
+        )?;
+
+        for (i, col) in self.columns.values().enumerate() {
+            if col.name.as_ref() == "id" {
+                continue;
+            }
+
+            if i == num - 1 {
+                fmt.write_fmt(format_args!(
+                    "                entry.{},\n",
+                    AsSnakeCase(&col.name)
+                ))?;
+            } else {
+                fmt.write_fmt(format_args!(
+                    "                entry.{},\n",
+                    AsSnakeCase(&col.name)
+                ))?;
+            }
+        }
+
+        fmt.write_str(
+            "            ]).await?;
+        }
+
+        Ok(())
+    }
+}\n",
+        )?;
+
+        // `New` initialization type
+        fmt.write_fmt(format_args!("\npub struct New{ty_name}<'a> {{\n",))?;
         for col in self.columns.values() {
             fmt.write_fmt(format_args!("    pub {},\n", col.new_field()))?;
         }

@@ -33,13 +33,40 @@ fn basic() -> anyhow::Result<()> {
     column.null = true;
     table.columns.insert(name.clone(), column);
 
-    assert_eq!(table.to_string(), r#"pub struct Account {
+    assert_eq!(
+        table.to_string(),
+        r#"pub struct Account {
     pub id: i32,
     pub name: String,
     pub password: String,
     pub email: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub last_login: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+impl Account {
+    pub async fn insert(slice: &[NewAccount<'_>]) -> Result<(), tokio_postgres::Error> {
+        let statement = client.prepare(
+            "INSERT INTO account (
+                name,
+                password,
+                email,
+                created_at,
+                last_login
+            ) VALUES ($1, $2, $3, $4, $5)"
+        ).await?;
+        for entry in slice {
+            client.execute(&statement, &[
+                entry.name,
+                entry.password,
+                entry.email,
+                entry.created_at,
+                entry.last_login,
+            ]).await?;
+        }
+
+        Ok(())
+    }
 }
 
 pub struct NewAccount<'a> {
@@ -50,7 +77,8 @@ pub struct NewAccount<'a> {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub last_login: Option<chrono::DateTime<chrono::Utc>>,
 }
-"#);
+"#
+    );
 
     Ok(())
 }
