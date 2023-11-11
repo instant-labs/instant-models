@@ -24,7 +24,7 @@ impl FromStr for Type {
                 "character varying" => PgType::TEXT,
                 "timestamp with time zone" => PgType::TIMESTAMPTZ,
                 "timestamp without time zone" => PgType::TIMESTAMP,
-                _ => todo!(),
+                _ => todo!("FromStr for {val:?}"),
             },
         })
     }
@@ -61,7 +61,7 @@ impl std::fmt::Display for Type {
                 inner: PgType::TIMESTAMPTZ,
             } => write!(fmt, "chrono::DateTime<chrono::Utc>"),
             Self::Composite { inner } => write!(fmt, "{}", AsUpperCamelCase(&inner.name)),
-            _ => todo!(),
+            ty => todo!("fmt::Display for {ty:?}"),
         }
     }
 }
@@ -97,7 +97,7 @@ impl Type {
                 inner: PgType::BYTEA_ARRAY,
             }
             | Self::Composite { inner: _ } => false,
-            _ => todo!(),
+            ty => todo!("{ty:?}::is_copy()"),
         }
     }
 }
