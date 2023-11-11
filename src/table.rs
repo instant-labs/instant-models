@@ -12,7 +12,7 @@ use tokio_postgres::Client;
 use crate::column::{Column, Constraint, NewValue};
 use crate::types::Type;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Table {
     pub name: Cow<'static, str>,
     pub columns: IndexMap<Cow<'static, str>, Column>,
@@ -65,7 +65,8 @@ impl Table {
     pub fn new(name: Cow<'static, str>) -> Self {
         Self {
             name,
-            ..Self::default()
+            columns: IndexMap::default(),
+            constraints: Vec::default(),
         }
     }
 
