@@ -5,7 +5,9 @@ use tokio_postgres::Client;
 mod table;
 pub use table::Table;
 mod column;
+pub use column::Column;
 mod types;
+pub use types::Type;
 
 pub struct Schema {
     pub tables: Vec<Table>,

@@ -21,4 +21,5 @@ tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"], optional = t
 [dev-dependencies]
 chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
+similar-asserts = "1.4.2"
 tempfile = "3.3"
