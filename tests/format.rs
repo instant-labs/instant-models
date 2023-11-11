@@ -41,6 +41,15 @@ fn basic() -> anyhow::Result<()> {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub last_login: Option<chrono::DateTime<chrono::Utc>>,
 }
+
+pub struct NewAccount<'a> {
+    pub id: i32,
+    pub name: &'a str,
+    pub password: &'a str,
+    pub email: &'a str,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub last_login: Option<chrono::DateTime<chrono::Utc>>,
+}
 "#);
 
     Ok(())

@@ -30,6 +30,13 @@ impl Column {
             type_def: None,
         }
     }
+
+    pub fn new_field(&self) -> NewField {
+        NewField {
+            lifetime: Some("a"),
+            val: self,
+        }
+    }
 }
 
 impl fmt::Display for Column {
@@ -42,12 +49,12 @@ impl fmt::Display for Column {
     }
 }
 
-pub struct NewValue<'a> {
+pub struct NewField<'a> {
     pub lifetime: Option<&'a str>,
     pub val: &'a Column,
 }
 
-impl fmt::Display for NewValue<'_> {
+impl fmt::Display for NewField<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if self.val.null && self.val.default.is_some() {
             panic!(

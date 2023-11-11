@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use std::fmt;
 #[cfg(feature = "postgres")]
 use std::str::FromStr;
+use std::sync::Arc;
 
 use heck::{AsSnakeCase, AsUpperCamelCase};
 use indexmap::IndexMap;
@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use tokio_postgres::Client;
 
 #[cfg(feature = "postgres")]
-use crate::column::{Column, Constraint, NewValue};
+use crate::column::{Column, Constraint};
 use crate::types::Type;
 
 #[derive(Debug, PartialEq)]
@@ -68,32 +68,6 @@ impl Table {
             columns: IndexMap::default(),
             constraints: Vec::default(),
         }
-    }
-
-    pub fn build_new_type(&self) -> String {
-        let columns =
-            self.columns
-                .values()
-                .filter(|c| !c.primary_key)
-                .fold(String::new(), |mut acc, col| {
-                    acc.push_str(&format!(
-                        "    pub {},",
-                        NewValue {
-                            val: col,
-                            lifetime: Some("a")
-                        }
-                    ));
-                    acc.push('\n');
-                    acc
-                });
-
-        format!(
-            r#"pub struct {}New<'a> {{
-{}}}
-        "#,
-            AsUpperCamelCase(&self.name),
-            columns
-        )
     }
 
     pub fn build_type_methods(&self) -> String {
@@ -206,6 +180,16 @@ impl fmt::Display for Table {
         for col in self.columns.values() {
             fmt.write_fmt(format_args!("    pub {col},\n"))?;
         }
+        fmt.write_str("}\n\n")?;
+
+        fmt.write_fmt(format_args!(
+            "pub struct New{}<'a> {{\n",
+            AsUpperCamelCase(&self.name)
+        ))?;
+        for col in self.columns.values() {
+            fmt.write_fmt(format_args!("    pub {},\n", col.new_field()))?;
+        }
+
         fmt.write_str("}\n")
     }
 }
