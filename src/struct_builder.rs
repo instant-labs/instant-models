@@ -1,8 +1,15 @@
-use crate::{Column, Constraint, NewValue, Type};
+use std::borrow::Cow;
+#[cfg(feature = "postgres")]
+use std::str::FromStr;
+
 use heck::{AsSnakeCase, AsUpperCamelCase};
 use indexmap::IndexMap;
-use std::borrow::Cow;
-use std::str::FromStr;
+#[cfg(feature = "postgres")]
+use tokio_postgres::Client;
+
+#[cfg(feature = "postgres")]
+use crate::Type;
+use crate::{Column, Constraint, NewValue};
 
 #[derive(Debug, PartialEq)]
 pub struct StructBuilder {
@@ -22,6 +29,49 @@ impl Default for StructBuilder {
 }
 
 impl StructBuilder {
+    #[cfg(feature = "postgres")]
+    pub async fn from_postgres(name: &str, client: &Client) -> anyhow::Result<Self> {
+        let mut builder = StructBuilder::new(name.to_owned().into());
+
+        let sql = r#"
+            SELECT column_name, is_nullable, data_type
+            FROM information_schema.columns
+            WHERE table_name = $1
+        "#;
+        for row in client.query(sql, &[&name]).await? {
+            let name = row.get::<_, &str>(0);
+            let nullable = row.get::<_, &str>(1);
+            let data_type = row.get::<_, &str>(2);
+            let col = Column::new(name.to_owned().into(), Type::from_str(data_type)?)
+                .set_null(nullable == "YES");
+            builder.columns.insert(name.to_owned().into(), col);
+        }
+
+        let sql = r#"
+            SELECT usage.constraint_name, usage.column_name, constraints.constraint_type
+            FROM information_schema.constraint_column_usage AS usage
+                JOIN information_schema.table_constraints AS constraints
+                    ON usage.constraint_name = constraints.constraint_name
+            WHERE usage.table_name = $1
+        "#;
+        for row in client.query(sql, &[&name]).await? {
+            let name = row.get::<_, &str>(0);
+            let column = row.get::<_, &str>(1);
+            let column = match builder.columns.get_mut(column) {
+                Some(col) => col,
+                None => panic!("constraint {name:?} for unknown column {column:?}"),
+            };
+
+            match row.get::<_, &str>(2) {
+                "UNIQUE" => column.unique = true,
+                "PRIMARY KEY" => column.primary_key = true,
+                other => panic!("unknown constraint type {other:?}"),
+            }
+        }
+
+        Ok(builder)
+    }
+
     pub fn new(name: Cow<'static, str>) -> Self {
         Self {
             name,
@@ -163,43 +213,6 @@ impl StructBuilder {
             )
         }
     */
-
-    #[cfg(feature = "postgres")]
-    pub fn new_from_conn(
-        client: &mut postgres::Client,
-        table_name: &str,
-    ) -> Result<Self, anyhow::Error> {
-        let mut struct_bldr = Self::new(table_name.to_string().into());
-        let mut col_index: IndexMap<String, Column> = IndexMap::new();
-        for row in client.query("SELECT column_name, is_nullable, data_type FROM information_schema.columns WHERE table_name = $1;", &[&table_name])? {
-        let column_name: &str = row.get(0);
-        let is_nullable: &str = row.get(1);
-        let data_type: &str = row.get(2);
-        let col = Column::new(column_name.to_string().into(), Type::from_str(data_type)?).set_null(is_nullable == "YES");
-        col_index.insert(column_name.to_string(), col);
-    }
-
-        for row in client.query("SELECT a.column_name, a.constraint_name, b.constraint_type FROM information_schema.constraint_column_usage AS a JOIN information_schema.table_constraints AS b ON a.constraint_name = b.constraint_name WHERE a.table_name = $1", &[&table_name])? {
-        let column_name: &str = row.get(0);
-        let constraint_name: &str = row.get(1);
-        let constraint_type: &str = row.get(2);
-        if let Some(col) = col_index.get_mut(&column_name.to_string()) {
-            match constraint_type {
-                "UNIQUE" => {col.unique = true;},
-                "PRIMARY KEY" => {col.primary_key = true;},
-                other => panic!("unknown constraint type: {}", other),
-            }
-        } else {
-            panic!("got constraint for unknown column: column_name {column_name}, constraint_name {constraint_name} constraint_type {constraint_type}");
-        }
-    }
-
-        for (_, col) in col_index.into_iter() {
-            struct_bldr.add_column(col);
-        }
-
-        Ok(struct_bldr)
-    }
 }
 
 impl std::fmt::Display for StructBuilder {
