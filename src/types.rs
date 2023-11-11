@@ -112,6 +112,11 @@ pub struct TypeAsRef<'a> {
 impl fmt::Display for TypeAsRef<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let Self { val, lifetime } = self;
+        let (lt_prefix, lt_name, lt_suffix) = match lifetime {
+            Some(lt) => ("'", *lt, " "),
+            None => ("", "", ""),
+        };
+
         match val {
             Type::Builtin {
                 inner: PgType::INT8,
@@ -121,46 +126,16 @@ impl fmt::Display for TypeAsRef<'_> {
             } => write!(fmt, "i32"),
             Type::Builtin {
                 inner: PgType::TEXT,
-            } => write!(
-                fmt,
-                "&{}{}{}str",
-                if lifetime.is_some() { "'" } else { "" },
-                if let Some(l) = lifetime.as_ref() {
-                    *l
-                } else {
-                    ""
-                },
-                if lifetime.is_some() { " " } else { "" }
-            ),
+            } => write!(fmt, "&{}{}{}str", lt_prefix, lt_name, lt_suffix),
             Type::Builtin {
                 inner: PgType::TEXT_ARRAY,
-            } => write!(
-                fmt,
-                "Vec<&{}{}{}str>",
-                if lifetime.is_some() { "'" } else { "" },
-                if let Some(l) = lifetime.as_ref() {
-                    *l
-                } else {
-                    ""
-                },
-                if lifetime.is_some() { " " } else { "" }
-            ),
+            } => write!(fmt, "Vec<&{}{}{}str>", lt_prefix, lt_name, lt_suffix),
             Type::Builtin {
                 inner: PgType::BYTEA,
             } => write!(fmt, "Vec<u8>"),
             Type::Builtin {
                 inner: PgType::BYTEA_ARRAY,
-            } => write!(
-                fmt,
-                "Vec<&{}{}{}[u8]>",
-                if lifetime.is_some() { "'" } else { "" },
-                if let Some(l) = lifetime.as_ref() {
-                    *l
-                } else {
-                    ""
-                },
-                if lifetime.is_some() { " " } else { "" }
-            ),
+            } => write!(fmt, "Vec<&{}{}{}[u8]>", lt_prefix, lt_name, lt_suffix),
             Type::Builtin {
                 inner: PgType::BOOL,
             } => write!(fmt, "bool"),
@@ -174,13 +149,9 @@ impl fmt::Display for TypeAsRef<'_> {
             Type::Composite { inner } => write!(
                 fmt,
                 "&{}{}{}{}",
-                if lifetime.is_some() { "'" } else { "" },
-                if let Some(l) = lifetime.as_ref() {
-                    *l
-                } else {
-                    ""
-                },
-                if lifetime.is_some() { " " } else { "" },
+                lt_prefix,
+                lt_name,
+                lt_suffix,
                 AsUpperCamelCase(&inner.name)
             ),
         }
