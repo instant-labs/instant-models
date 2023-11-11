@@ -22,18 +22,18 @@ impl Table {
     #[cfg(feature = "postgres")]
     pub async fn from_postgres(name: &str, client: &Client) -> anyhow::Result<Self> {
         let sql = r#"
-            SELECT column_name, is_nullable, data_type
+            SELECT column_name, data_type, is_nullable
             FROM information_schema.columns
             WHERE table_name = $1
         "#;
         let mut new = Table::new(name.to_owned().into());
         for row in client.query(sql, &[&name]).await? {
             let name = row.get::<_, &str>(0);
-            let nullable = row.get::<_, &str>(1);
-            let data_type = row.get::<_, &str>(2);
-            let col = Column::new(name.to_owned().into(), Type::from_str(data_type)?)
-                .set_null(nullable == "YES");
-            new.columns.insert(name.to_owned().into(), col);
+            let r#type = Type::from_str(row.get(1))?;
+            let mut column = Column::new(name.to_owned().into(), r#type);
+            column.null = row.get::<_, &str>(2) == "YES";
+
+            new.columns.insert(name.to_owned().into(), column);
         }
 
         let sql = r#"

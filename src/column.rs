@@ -35,36 +35,6 @@ impl Column {
             type_def: None,
         }
     }
-
-    pub fn set_null(mut self, value: bool) -> Self {
-        self.null = value;
-        self
-    }
-
-    pub fn set_primary_key(mut self, value: bool) -> Self {
-        self.primary_key = value;
-        self
-    }
-
-    pub fn set_foreign_key(mut self, value: Option<ForeignKey>) -> Self {
-        self.foreign_key = value;
-        self
-    }
-
-    pub fn set_unique(mut self, value: bool) -> Self {
-        self.unique = value;
-        self
-    }
-
-    pub fn set_default(mut self, value: Option<Cow<'static, str>>) -> Self {
-        self.default = value;
-        self
-    }
-
-    pub fn set_type_def(mut self, value: Option<Cow<'static, str>>) -> Self {
-        self.type_def = value;
-        self
-    }
 }
 
 impl std::fmt::Display for Column {
