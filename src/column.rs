@@ -1,5 +1,5 @@
-use std::borrow::Cow;
 use std::fmt;
+use std::sync::Arc;
 
 use heck::AsSnakeCase;
 
@@ -7,18 +7,18 @@ use crate::types::{Type, TypeAsRef};
 
 #[derive(Debug, PartialEq)]
 pub struct Column {
-    pub name: Cow<'static, str>,
+    pub name: Arc<str>,
     pub r#type: Type,
     pub null: bool,
     pub primary_key: bool,
     pub foreign_key: Option<ForeignKey>,
     pub unique: bool,
-    pub default: Option<Cow<'static, str>>,
-    pub type_def: Option<Cow<'static, str>>,
+    pub default: Option<String>,
+    pub type_def: Option<String>,
 }
 
 impl Column {
-    pub fn new(name: Cow<'static, str>, r#type: Type) -> Self {
+    pub fn new(name: Arc<str>, r#type: Type) -> Self {
         Self {
             name,
             r#type,
@@ -83,19 +83,19 @@ impl fmt::Display for NewValue<'_> {
 #[derive(Debug, PartialEq)]
 pub enum Constraint {
     ForeignKey {
-        name: Cow<'static, str>,
-        columns: Cow<'static, [Cow<'static, str>]>,
-        ref_table: Cow<'static, str>,
-        ref_columns: Cow<'static, [Cow<'static, str>]>,
+        name: String,
+        columns: Vec<String>,
+        ref_table: String,
+        ref_columns: Vec<String>,
     },
     PrimaryKey {
-        name: Cow<'static, str>,
-        columns: Vec<Cow<'static, str>>,
+        name: Vec<String>,
+        columns: Vec<String>,
     },
 }
 
 #[derive(Debug, PartialEq)]
 pub struct ForeignKey {
-    to_table: Cow<'static, str>,
-    columns: Vec<Cow<'static, str>>,
+    to_table: String,
+    columns: Vec<String>,
 }

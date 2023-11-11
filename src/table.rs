@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::sync::Arc;
 use std::fmt;
 #[cfg(feature = "postgres")]
 use std::str::FromStr;
@@ -14,8 +14,8 @@ use crate::types::Type;
 
 #[derive(Debug, PartialEq)]
 pub struct Table {
-    pub name: Cow<'static, str>,
-    pub columns: IndexMap<Cow<'static, str>, Column>,
+    pub name: Arc<str>,
+    pub columns: IndexMap<Arc<str>, Column>,
     pub constraints: Vec<Constraint>,
 }
 
@@ -29,12 +29,12 @@ impl Table {
         "#;
         let mut new = Table::new(name.to_owned().into());
         for row in client.query(sql, &[&name]).await? {
-            let name = row.get::<_, &str>(0);
+            let name = Arc::<str>::from(row.get::<_, &str>(0));
             let r#type = Type::from_str(row.get(1))?;
-            let mut column = Column::new(name.to_owned().into(), r#type);
+            let mut column = Column::new(name.clone(), r#type);
             column.null = row.get::<_, &str>(2) == "YES";
 
-            new.columns.insert(name.to_owned().into(), column);
+            new.columns.insert(name, column);
         }
 
         let sql = r#"
@@ -62,7 +62,7 @@ impl Table {
         Ok(new)
     }
 
-    pub fn new(name: Cow<'static, str>) -> Self {
+    pub fn new(name: Arc<str>) -> Self {
         Self {
             name,
             columns: IndexMap::default(),
