@@ -5,13 +5,8 @@ edition = "2021"
 rust-version = "1.70"
 license = "Apache-2.0 OR MIT"
 
-[[bin]]
-name = "cli"
-required-features = ["postgres", "clap"]
-
 [dependencies]
 anyhow = "1"
-clap = { version = "4", features = ["derive"], optional = true }
 heck = "0.4.0"
 indexmap = "2"
 postgres = { version = "0.19.3", optional = true }
