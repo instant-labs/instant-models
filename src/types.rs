@@ -12,6 +12,42 @@ pub enum Type {
     Composite { inner: Table },
 }
 
+impl Type {
+    pub fn is_copy(&self) -> bool {
+        match self {
+            Self::Builtin {
+                inner: PgType::BOOL,
+            }
+            | Self::Builtin {
+                inner: PgType::TIMESTAMP,
+            }
+            | Self::Builtin {
+                inner: PgType::TIMESTAMPTZ,
+            }
+            | Self::Builtin {
+                inner: PgType::INT8,
+            }
+            | Self::Builtin {
+                inner: PgType::INT4,
+            } => true,
+            Self::Builtin {
+                inner: PgType::TEXT,
+            }
+            | Self::Builtin {
+                inner: PgType::TEXT_ARRAY,
+            }
+            | Self::Builtin {
+                inner: PgType::BYTEA,
+            }
+            | Self::Builtin {
+                inner: PgType::BYTEA_ARRAY,
+            }
+            | Self::Composite { inner: _ } => false,
+            ty => todo!("{ty:?}::is_copy()"),
+        }
+    }
+}
+
 impl FromStr for Type {
     type Err = anyhow::Error;
     fn from_str(val: &str) -> Result<Self, Self::Err> {
@@ -64,42 +100,6 @@ impl fmt::Display for Type {
             } => write!(fmt, "chrono::DateTime<chrono::Utc>"),
             Self::Composite { inner } => write!(fmt, "{}", AsUpperCamelCase(&inner.name)),
             ty => todo!("fmt::Display for {ty:?}"),
-        }
-    }
-}
-
-impl Type {
-    pub fn is_copy(&self) -> bool {
-        match self {
-            Self::Builtin {
-                inner: PgType::BOOL,
-            }
-            | Self::Builtin {
-                inner: PgType::TIMESTAMP,
-            }
-            | Self::Builtin {
-                inner: PgType::TIMESTAMPTZ,
-            }
-            | Self::Builtin {
-                inner: PgType::INT8,
-            }
-            | Self::Builtin {
-                inner: PgType::INT4,
-            } => true,
-            Self::Builtin {
-                inner: PgType::TEXT,
-            }
-            | Self::Builtin {
-                inner: PgType::TEXT_ARRAY,
-            }
-            | Self::Builtin {
-                inner: PgType::BYTEA,
-            }
-            | Self::Builtin {
-                inner: PgType::BYTEA_ARRAY,
-            }
-            | Self::Composite { inner: _ } => false,
-            ty => todo!("{ty:?}::is_copy()"),
         }
     }
 }
