@@ -14,18 +14,19 @@ pub enum Type {
 
 impl Type {
     pub fn is_copy(&self) -> bool {
+        use Type::*;
         match self {
-            Self::Builtin(
+            Builtin(
                 PgType::BOOL
                 | PgType::TIMESTAMP
                 | PgType::TIMESTAMPTZ
                 | PgType::INT8
                 | PgType::INT4,
             ) => true,
-            Self::Builtin(
-                PgType::TEXT | PgType::TEXT_ARRAY | PgType::BYTEA | PgType::BYTEA_ARRAY,
-            ) => false,
-            Self::Composite { .. } => false,
+            Builtin(PgType::TEXT | PgType::TEXT_ARRAY | PgType::BYTEA | PgType::BYTEA_ARRAY) => {
+                false
+            }
+            Composite { .. } => false,
             ty => todo!("{ty:?}::is_copy()"),
         }
     }
@@ -51,17 +52,18 @@ impl FromStr for Type {
 
 impl fmt::Display for Type {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use Type::*;
         match self {
-            Self::Builtin(PgType::INT8) => write!(fmt, "i64"),
-            Self::Builtin(PgType::INT4) => write!(fmt, "i32"),
-            Self::Builtin(PgType::TEXT) => write!(fmt, "String"),
-            Self::Builtin(PgType::TEXT_ARRAY) => write!(fmt, "Vec<String>"),
-            Self::Builtin(PgType::BYTEA) => write!(fmt, "Vec<u8>"),
-            Self::Builtin(PgType::BYTEA_ARRAY) => write!(fmt, "Vec<Vec<u8>>"),
-            Self::Builtin(PgType::BOOL) => write!(fmt, "bool"),
-            Self::Builtin(PgType::TIMESTAMP) => write!(fmt, "chrono::naive::NaiveDateTime"),
-            Self::Builtin(PgType::TIMESTAMPTZ) => write!(fmt, "chrono::DateTime<chrono::Utc>"),
-            Self::Composite(inner) => write!(fmt, "{}", AsUpperCamelCase(&inner.name)),
+            Builtin(PgType::INT8) => write!(fmt, "i64"),
+            Builtin(PgType::INT4) => write!(fmt, "i32"),
+            Builtin(PgType::TEXT) => write!(fmt, "String"),
+            Builtin(PgType::TEXT_ARRAY) => write!(fmt, "Vec<String>"),
+            Builtin(PgType::BYTEA) => write!(fmt, "Vec<u8>"),
+            Builtin(PgType::BYTEA_ARRAY) => write!(fmt, "Vec<Vec<u8>>"),
+            Builtin(PgType::BOOL) => write!(fmt, "bool"),
+            Builtin(PgType::TIMESTAMP) => write!(fmt, "chrono::naive::NaiveDateTime"),
+            Builtin(PgType::TIMESTAMPTZ) => write!(fmt, "chrono::DateTime<chrono::Utc>"),
+            Composite(inner) => write!(fmt, "{}", AsUpperCamelCase(&inner.name)),
             ty => todo!("fmt::Display for {ty:?}"),
         }
     }
@@ -80,22 +82,23 @@ impl fmt::Display for TypeAsRef<'_> {
             None => ("", "", ""),
         };
 
+        use Type::*;
         match val {
-            Type::Builtin(PgType::INT8) => write!(fmt, "i64"),
-            Type::Builtin(PgType::INT4) => write!(fmt, "i32"),
-            Type::Builtin(PgType::TEXT) => write!(fmt, "&{}{}{}str", lt_prefix, lt_name, lt_suffix),
-            Type::Builtin(PgType::TEXT_ARRAY) => {
+            Builtin(PgType::INT8) => write!(fmt, "i64"),
+            Builtin(PgType::INT4) => write!(fmt, "i32"),
+            Builtin(PgType::TEXT) => write!(fmt, "&{}{}{}str", lt_prefix, lt_name, lt_suffix),
+            Builtin(PgType::TEXT_ARRAY) => {
                 write!(fmt, "Vec<&{}{}{}str>", lt_prefix, lt_name, lt_suffix)
             }
-            Type::Builtin(PgType::BYTEA) => write!(fmt, "Vec<u8>"),
-            Type::Builtin(PgType::BYTEA_ARRAY) => {
+            Builtin(PgType::BYTEA) => write!(fmt, "Vec<u8>"),
+            Builtin(PgType::BYTEA_ARRAY) => {
                 write!(fmt, "Vec<&{}{}{}[u8]>", lt_prefix, lt_name, lt_suffix)
             }
-            Type::Builtin(PgType::BOOL) => write!(fmt, "bool"),
-            Type::Builtin(PgType::TIMESTAMP) => write!(fmt, "chrono::naive::NaiveDateTime",),
-            Type::Builtin(PgType::TIMESTAMPTZ) => write!(fmt, "chrono::DateTime<chrono::Utc>",),
-            Type::Builtin(inner) => todo!("no Display for {inner:?}"),
-            Type::Composite(inner) => write!(
+            Builtin(PgType::BOOL) => write!(fmt, "bool"),
+            Builtin(PgType::TIMESTAMP) => write!(fmt, "chrono::naive::NaiveDateTime",),
+            Builtin(PgType::TIMESTAMPTZ) => write!(fmt, "chrono::DateTime<chrono::Utc>",),
+            Builtin(inner) => todo!("no Display for {inner:?}"),
+            Composite(inner) => write!(
                 fmt,
                 "&{}{}{}{}",
                 lt_prefix,
