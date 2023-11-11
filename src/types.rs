@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use heck::AsUpperCamelCase;
 use tokio_postgres::types::Type as PgType;
+use tokio_postgres::Client;
 
 use crate::Table;
 
@@ -10,9 +11,20 @@ use crate::Table;
 pub enum Type {
     Builtin(PgType),
     Composite(Table),
+    Enum(PgEnum),
 }
 
 impl Type {
+    pub async fn from_postgres(name: &str, client: &Client) -> Result<Self, tokio_postgres::Error> {
+        let sql = "SELECT oid, typtype FROM pg_catalog.pg_type WHERE typname = $1";
+        let row = client.query_one(sql, &[&name]).await?;
+        Ok(match row.get::<_, i8>(1) {
+            // enum: 'e' is 101 in ASCII, but b'e' can only be u8 in Rust
+            101 => Self::Enum(PgEnum::from_postgres(row.get(0), name, client).await?),
+            ty => todo!("unknown Postgres type type {ty:?}"),
+        })
+    }
+
     pub fn is_copy(&self) -> bool {
         use Type::*;
         match self {
@@ -69,6 +81,49 @@ impl fmt::Display for Type {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct PgEnum {
+    name: String,
+    variants: Vec<String>,
+}
+
+impl PgEnum {
+    async fn from_postgres(
+        id: u32,
+        name: &str,
+        client: &Client,
+    ) -> Result<Self, tokio_postgres::Error> {
+        let mut new = Self {
+            name: name.to_owned(),
+            variants: Vec::new(),
+        };
+
+        let sql = r#"
+            SELECT enumlabel
+            FROM pg_catalog.pg_enum
+            WHERE enumtypid = $1
+            ORDER BY enumsortorder ASC
+        "#;
+        for row in client.query(sql, &[&id]).await? {
+            let label = row.get::<_, &str>(0);
+            new.variants.push(label.to_owned());
+        }
+
+        Ok(new)
+    }
+}
+
+impl fmt::Display for PgEnum {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("enum {} {{\n", AsUpperCamelCase(&self.name)))?;
+        for variant in &self.variants {
+            f.write_fmt(format_args!("    {},", AsUpperCamelCase(&variant)))?;
+        }
+
+        f.write_str("}\n")
+    }
+}
+
 pub struct TypeAsRef<'a> {
     pub lifetime: Option<&'a str>,
     pub val: &'a Type,
@@ -106,6 +161,7 @@ impl fmt::Display for TypeAsRef<'_> {
                 lt_suffix,
                 AsUpperCamelCase(&inner.name)
             ),
+            Enum(inner) => fmt.write_fmt(format_args!("{inner}")),
         }
     }
 }

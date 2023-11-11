@@ -23,17 +23,20 @@ impl Table {
     #[cfg(feature = "postgres")]
     pub async fn from_postgres(name: &str, client: &Client) -> anyhow::Result<Self> {
         let sql = r#"
-            SELECT column_name, data_type, is_nullable
+            SELECT column_name, data_type, is_nullable, udt_name
             FROM information_schema.columns
             WHERE table_name = $1
         "#;
         let mut new = Table::new(name.to_owned().into());
         for row in client.query(sql, &[&name]).await? {
             let name = Arc::<str>::from(row.get::<_, &str>(0));
-            let r#type = Type::from_str(row.get(1))?;
+            let r#type = match row.get::<_, &str>(1) {
+                "USER-DEFINED" => Type::from_postgres(row.get(3), client).await?,
+                other => Type::from_str(other)?,
+            };
+
             let mut column = Column::new(name.clone(), r#type);
             column.null = row.get::<_, &str>(2) == "YES";
-
             new.columns.insert(name, column);
         }
 
