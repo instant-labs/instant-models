@@ -1,7 +1,9 @@
-use crate::StructBuilder;
-use heck::AsUpperCamelCase;
 use std::str::FromStr;
+
+use heck::AsUpperCamelCase;
 use tokio_postgres::types::Type as PgType;
+
+use crate::StructBuilder;
 
 #[derive(Debug, PartialEq)]
 pub enum Type {

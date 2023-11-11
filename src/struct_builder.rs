@@ -8,8 +8,8 @@ use indexmap::IndexMap;
 use tokio_postgres::Client;
 
 #[cfg(feature = "postgres")]
-use crate::Type;
-use crate::{Column, Constraint, NewValue};
+use crate::column::{Column, Constraint, NewValue};
+use crate::types::Type;
 
 #[derive(Debug, PartialEq)]
 pub struct StructBuilder {

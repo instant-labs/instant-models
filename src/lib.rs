@@ -4,12 +4,8 @@ use tokio_postgres::Client;
 
 mod struct_builder;
 pub use struct_builder::StructBuilder;
-
 mod column;
-pub use column::*;
-
 mod types;
-pub use types::*;
 
 pub struct Schema {
     pub tables: Vec<StructBuilder>,

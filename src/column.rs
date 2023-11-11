@@ -1,6 +1,8 @@
-use crate::{Type, TypeAsRef};
-use heck::AsSnakeCase;
 use std::borrow::Cow;
+
+use heck::AsSnakeCase;
+
+use crate::types::{Type, TypeAsRef};
 
 #[derive(Debug, PartialEq)]
 pub struct ForeignKey {
