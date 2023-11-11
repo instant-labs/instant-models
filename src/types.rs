@@ -3,12 +3,12 @@ use std::str::FromStr;
 use heck::AsUpperCamelCase;
 use tokio_postgres::types::Type as PgType;
 
-use crate::StructBuilder;
+use crate::Table;
 
 #[derive(Debug, PartialEq)]
 pub enum Type {
     Builtin { inner: PgType },
-    Composite { inner: StructBuilder },
+    Composite { inner: Table },
 }
 
 impl FromStr for Type {

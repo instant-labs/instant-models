@@ -12,29 +12,28 @@ use crate::column::{Column, Constraint, NewValue};
 use crate::types::Type;
 
 #[derive(Debug, Default, PartialEq)]
-pub struct StructBuilder {
+pub struct Table {
     pub name: Cow<'static, str>,
     pub columns: IndexMap<Cow<'static, str>, Column>,
     pub constraints: Vec<Constraint>,
 }
 
-impl StructBuilder {
+impl Table {
     #[cfg(feature = "postgres")]
     pub async fn from_postgres(name: &str, client: &Client) -> anyhow::Result<Self> {
-        let mut builder = StructBuilder::new(name.to_owned().into());
-
         let sql = r#"
             SELECT column_name, is_nullable, data_type
             FROM information_schema.columns
             WHERE table_name = $1
         "#;
+        let mut new = Table::new(name.to_owned().into());
         for row in client.query(sql, &[&name]).await? {
             let name = row.get::<_, &str>(0);
             let nullable = row.get::<_, &str>(1);
             let data_type = row.get::<_, &str>(2);
             let col = Column::new(name.to_owned().into(), Type::from_str(data_type)?)
                 .set_null(nullable == "YES");
-            builder.columns.insert(name.to_owned().into(), col);
+            new.columns.insert(name.to_owned().into(), col);
         }
 
         let sql = r#"
@@ -47,7 +46,7 @@ impl StructBuilder {
         for row in client.query(sql, &[&name]).await? {
             let name = row.get::<_, &str>(0);
             let column = row.get::<_, &str>(1);
-            let column = match builder.columns.get_mut(column) {
+            let column = match new.columns.get_mut(column) {
                 Some(col) => col,
                 None => panic!("constraint {name:?} for unknown column {column:?}"),
             };
@@ -59,7 +58,7 @@ impl StructBuilder {
             }
         }
 
-        Ok(builder)
+        Ok(new)
     }
 
     pub fn new(name: Cow<'static, str>) -> Self {
@@ -205,7 +204,7 @@ impl StructBuilder {
     */
 }
 
-impl std::fmt::Display for StructBuilder {
+impl std::fmt::Display for Table {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         let columns = self.columns.values().fold(String::new(), |mut acc, col| {
             acc.push_str(&format!("    pub {},\n", col));

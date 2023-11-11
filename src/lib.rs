@@ -2,13 +2,13 @@ use std::fmt;
 
 use tokio_postgres::Client;
 
-mod struct_builder;
-pub use struct_builder::StructBuilder;
+mod table;
+pub use table::Table;
 mod column;
 mod types;
 
 pub struct Schema {
-    pub tables: Vec<StructBuilder>,
+    pub tables: Vec<Table>,
 }
 
 impl Schema {
@@ -23,7 +23,7 @@ impl Schema {
         let mut tables = Vec::new();
         for row in client.query(sql, &[]).await? {
             let name = row.get::<_, &str>(0);
-            let table = StructBuilder::from_postgres(name, &client).await?;
+            let table = Table::from_postgres(name, client).await?;
             tables.push(table);
         }
 
