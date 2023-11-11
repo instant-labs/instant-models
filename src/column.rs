@@ -58,7 +58,7 @@ impl fmt::Display for NewField<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         if self.val.null && self.val.default.is_some() {
             panic!(
-                "Column `{}` is both NULL and takes a default value `{}`",
+                "column `{}` is both NULL and takes a default value `{}`",
                 self.val.name,
                 self.val.default.as_ref().unwrap()
             );
