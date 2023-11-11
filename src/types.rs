@@ -170,6 +170,7 @@ impl fmt::Display for TypeAsRef<'_> {
             Type::Builtin {
                 inner: PgType::TIMESTAMPTZ,
             } => write!(fmt, "chrono::DateTime<chrono::Utc>",),
+            Type::Builtin { inner } => todo!("no Display for {inner:?}"),
             Type::Composite { inner } => write!(
                 fmt,
                 "&{}{}{}{}",
@@ -182,7 +183,6 @@ impl fmt::Display for TypeAsRef<'_> {
                 if lifetime.is_some() { " " } else { "" },
                 AsUpperCamelCase(&inner.name)
             ),
-            _ => todo!(),
         }
     }
 }
