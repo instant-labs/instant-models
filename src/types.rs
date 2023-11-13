@@ -49,7 +49,10 @@ impl Type {
         // A Postgres 'char' is represented as an `u8`
         Ok(match row.get::<_, i8>(2) {
             // array: 'b' is 98 in ASCII
-            98 => Self::Array(Self::from_postgres_by_id(row.get(3), client).await?.into()),
+            98 => match row.get(3) {
+                0 => return Ok(Self::from_str(row.get::<_, &str>(1)).unwrap()),
+                oid => Self::Array(Self::from_postgres_by_id(oid, client).await?.into()),
+            },
             // enum: 'e' is 101 in ASCII
             101 => Self::Enum(PgEnum::from_postgres(row.get(0), row.get(1), client).await?),
             ty => todo!(
