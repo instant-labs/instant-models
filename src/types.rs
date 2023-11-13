@@ -86,12 +86,12 @@ impl FromStr for Type {
     fn from_str(val: &str) -> Result<Self, Self::Err> {
         Ok(Self::Builtin(match val {
             "bigint" => PgType::INT8,
+            "boolean" => PgType::BOOL,
+            "bytea" => PgType::BYTEA,
+            "bytea[]" => PgType::BYTEA_ARRAY,
             "integer" | "int4" => PgType::INT4,
             "text" | "character varying" => PgType::TEXT,
             "text[]" => PgType::TEXT_ARRAY,
-            "bytea" => PgType::BYTEA,
-            "bytea[]" => PgType::BYTEA_ARRAY,
-            "boolean" => PgType::BOOL,
             "timestamp with time zone" => PgType::TIMESTAMPTZ,
             "timestamp without time zone" => PgType::TIMESTAMP,
             _ => todo!("FromStr for {val:?}"),
@@ -103,13 +103,13 @@ impl fmt::Display for Type {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         use Type::*;
         match self {
-            Builtin(PgType::INT8) => write!(fmt, "i64"),
-            Builtin(PgType::INT4) => write!(fmt, "i32"),
-            Builtin(PgType::TEXT) => write!(fmt, "String"),
-            Builtin(PgType::TEXT_ARRAY) => write!(fmt, "Vec<String>"),
+            Builtin(PgType::BOOL) => write!(fmt, "bool"),
             Builtin(PgType::BYTEA) => write!(fmt, "Vec<u8>"),
             Builtin(PgType::BYTEA_ARRAY) => write!(fmt, "Vec<Vec<u8>>"),
-            Builtin(PgType::BOOL) => write!(fmt, "bool"),
+            Builtin(PgType::INT4) => write!(fmt, "i32"),
+            Builtin(PgType::INT8) => write!(fmt, "i64"),
+            Builtin(PgType::TEXT) => write!(fmt, "String"),
+            Builtin(PgType::TEXT_ARRAY) => write!(fmt, "Vec<String>"),
             Builtin(PgType::TIMESTAMP) => write!(fmt, "chrono::naive::NaiveDateTime"),
             Builtin(PgType::TIMESTAMPTZ) => write!(fmt, "chrono::DateTime<chrono::Utc>"),
             Composite(inner) => write!(fmt, "{}", AsUpperCamelCase(&inner.name)),
