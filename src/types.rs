@@ -104,14 +104,17 @@ impl FromStr for Type {
             "bytea" => PgType::BYTEA,
             "bytea[]" => PgType::BYTEA_ARRAY,
             "float4" | "real" => PgType::FLOAT4,
+            "float8" | "double precision" => PgType::FLOAT8,
             "inet" => PgType::INET,
             "smallint" | "int2" => PgType::INT2,
             "integer" | "int4" => PgType::INT4,
+            "interval" => PgType::INTERVAL,
             "jsonb" => PgType::JSONB,
             "text" | "character varying" => PgType::TEXT,
             "text[]" => PgType::TEXT_ARRAY,
             "timestamp with time zone" => PgType::TIMESTAMPTZ,
             "timestamp without time zone" => PgType::TIMESTAMP,
+            "uuid" => PgType::UUID,
             _ => todo!("FromStr for {val:?}"),
         }))
     }
