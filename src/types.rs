@@ -29,7 +29,10 @@ impl Type {
         oid: u32,
         client: &Client,
     ) -> Result<Self, tokio_postgres::Error> {
-        Self::from_postgres("oid = $1", &[&oid], client).await
+        match PgType::from_oid(oid) {
+            Some(ty) => Ok(Self::Builtin(ty)),
+            None => Self::from_postgres("oid = $1", &[&oid], client).await,
+        }
     }
 
     async fn from_postgres(
