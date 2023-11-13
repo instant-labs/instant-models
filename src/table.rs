@@ -63,6 +63,7 @@ impl Table {
                 "FOREIGN KEY" => {
                     column.foreign_key = Some(ForeignKey::from_postgres(row.get(2), client).await?);
                 }
+                "CHECK" => {} // ignore these for now
                 other => panic!("unknown constraint type {other:?}"),
             }
         }
