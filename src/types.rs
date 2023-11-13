@@ -6,13 +6,11 @@ use heck::AsUpperCamelCase;
 use tokio_postgres::types::{ToSql, Type as PgType};
 use tokio_postgres::Client;
 
-use crate::Table;
-
 #[derive(Debug, PartialEq)]
 pub enum Type {
     Array(Box<Type>),
     Builtin(PgType),
-    Composite(Table),
+    Composite(CompositeRef),
     Enum(PgEnum),
 }
 
@@ -40,8 +38,10 @@ impl Type {
         args: &[&(dyn ToSql + Sync)],
         client: &Client,
     ) -> Result<Self, tokio_postgres::Error> {
-        let sql =
-            format!("SELECT oid, typname, typtype, typelem FROM pg_catalog.pg_type WHERE {cond}");
+        let sql = format!(
+            "SELECT oid, typname, typtype, typrelid, typelem
+            FROM pg_catalog.pg_type WHERE {cond}"
+        );
         let rows = client.query(&sql, args).await?;
         let row = match &rows[..] {
             [row] => row,
@@ -52,10 +52,16 @@ impl Type {
         // A Postgres 'char' is represented as an `u8`
         Ok(match row.get::<_, i8>(2) {
             // array: 'b' is 98 in ASCII
-            98 => match row.get(3) {
+            98 => match row.get(4) {
                 0 => return Ok(Self::from_str(row.get::<_, &str>(1)).unwrap()),
                 oid => Self::Array(Self::from_postgres_by_id(oid, client).await?.into()),
             },
+            // composite: 'c' is 99 in ASCII
+            99 => {
+                return Ok(Self::Composite(CompositeRef {
+                    name: row.get::<_, &str>(1).to_owned(),
+                }))
+            }
             // enum: 'e' is 101 in ASCII
             101 => Self::Enum(PgEnum::from_postgres(row.get(0), row.get(1), client).await?),
             ty => todo!(
@@ -206,4 +212,9 @@ impl fmt::Display for TypeAsRef<'_> {
             Enum(inner) => fmt.write_fmt(format_args!("{inner}")),
         }
     }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CompositeRef {
+    name: String,
 }
