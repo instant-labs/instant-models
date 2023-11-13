@@ -9,7 +9,7 @@ use indexmap::IndexMap;
 use tokio_postgres::Client;
 
 #[cfg(feature = "postgres")]
-use crate::column::{Column, Constraint};
+use crate::column::{Column, Constraint, ForeignKey};
 use crate::types::Type;
 
 #[derive(Debug, PartialEq)]
@@ -41,7 +41,9 @@ impl Table {
         }
 
         let sql = r#"
-            SELECT usage.constraint_name, usage.column_name, constraints.constraint_type
+            SELECT
+                usage.constraint_name, usage.column_name,
+                constraints.constraint_name, constraints.constraint_type
             FROM information_schema.constraint_column_usage AS usage
                 JOIN information_schema.table_constraints AS constraints
                     ON usage.constraint_name = constraints.constraint_name
@@ -55,9 +57,12 @@ impl Table {
                 None => panic!("constraint {name:?} for unknown column {column:?}"),
             };
 
-            match row.get::<_, &str>(2) {
+            match row.get::<_, &str>(3) {
                 "UNIQUE" => column.unique = true,
                 "PRIMARY KEY" => column.primary_key = true,
+                "FOREIGN KEY" => {
+                    column.foreign_key = Some(ForeignKey::from_postgres(row.get(2), client).await?);
+                }
                 other => panic!("unknown constraint type {other:?}"),
             }
         }

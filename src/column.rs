@@ -2,6 +2,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use heck::AsSnakeCase;
+use tokio_postgres::Client;
 
 use crate::types::{Type, TypeAsRef};
 
@@ -105,4 +106,31 @@ pub enum Constraint {
 pub struct ForeignKey {
     to_table: String,
     columns: Vec<String>,
+}
+
+impl ForeignKey {
+    pub(crate) async fn from_postgres(
+        name: &str,
+        client: &Client,
+    ) -> Result<Self, tokio_postgres::Error> {
+        let sql = r#"
+            SELECT tc.table_name, kcu.column_name
+            FROM information_schema.table_constraints AS tc
+                JOIN information_schema.key_column_usage AS kcu
+                    ON tc.constraint_name = kcu.constraint_name
+            WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.constraint_name = $1
+        "#;
+
+        let rows = client.query(sql, &[&name]).await?;
+        let row = match &rows[..] {
+            [row] => row,
+            [] => panic!("foreign key constraint {name} not found"),
+            _ => todo!("unsupported composite foreign key {name}"),
+        };
+
+        Ok(Self {
+            to_table: row.get::<_, &str>(0).to_owned(),
+            columns: vec![row.get::<_, &str>(1).to_owned()],
+        })
+    }
 }
