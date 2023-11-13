@@ -86,7 +86,7 @@ impl FromStr for Type {
     fn from_str(val: &str) -> Result<Self, Self::Err> {
         Ok(Self::Builtin(match val {
             "bigint" => PgType::INT8,
-            "integer" => PgType::INT4,
+            "integer" | "int4" => PgType::INT4,
             "text" | "character varying" => PgType::TEXT,
             "text[]" => PgType::TEXT_ARRAY,
             "bytea" => PgType::BYTEA,
