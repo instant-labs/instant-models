@@ -90,6 +90,7 @@ impl FromStr for Type {
             "bytea" => PgType::BYTEA,
             "bytea[]" => PgType::BYTEA_ARRAY,
             "integer" | "int4" => PgType::INT4,
+            "jsonb" => PgType::JSONB,
             "text" | "character varying" => PgType::TEXT,
             "text[]" => PgType::TEXT_ARRAY,
             "timestamp with time zone" => PgType::TIMESTAMPTZ,
