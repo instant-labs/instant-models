@@ -39,7 +39,12 @@ impl Type {
     ) -> Result<Self, tokio_postgres::Error> {
         let sql =
             format!("SELECT oid, typname, typtype, typelem FROM pg_catalog.pg_type WHERE {cond}");
-        let row = client.query_one(&sql, args).await?;
+        let rows = client.query(&sql, args).await?;
+        let row = match &rows[..] {
+            [row] => row,
+            [] => todo!("no Postgres type found for {cond} with {args:?}"),
+            _ => todo!("multiple Postgres types found for {cond} with {args:?}"),
+        };
 
         // A Postgres 'char' is represented as an `u8`
         Ok(match row.get::<_, i8>(2) {
