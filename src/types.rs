@@ -12,6 +12,7 @@ pub enum Type {
     Builtin(PgType),
     Composite(CompositeRef),
     Enum(PgEnum),
+    Vector,
 }
 
 impl Type {
@@ -93,6 +94,10 @@ impl Type {
 impl FromStr for Type {
     type Err = anyhow::Error;
     fn from_str(val: &str) -> Result<Self, Self::Err> {
+        if val == "vector" || val == "tsvector" {
+            return Ok(Self::Vector);
+        }
+
         Ok(Self::Builtin(match val {
             "bigint" => PgType::INT8,
             "boolean" => PgType::BOOL,
@@ -213,6 +218,7 @@ impl fmt::Display for TypeAsRef<'_> {
                 AsUpperCamelCase(&inner.name)
             ),
             Enum(inner) => fmt.write_fmt(format_args!("{inner}")),
+            Vector => fmt.write_str("pgvector::Vector"),
         }
     }
 }
