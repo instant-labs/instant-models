@@ -5,24 +5,22 @@ edition = "2021"
 rust-version = "1.70"
 license = "Apache-2.0 OR MIT"
 
-[[bin]]
-name = "cli"
-required-features = ["postgres", "clap"]
+[features]
+default = ["postgres"]
+postgres = ["tokio-postgres"]
 
 [dependencies]
 anyhow = "1"
-clap = { version = "4", features = ["derive"], optional = true }
+async-recursion = "1"
 heck = "0.4.0"
 indexmap = "2"
-postgres = { version = "0.19.3", optional = true }
-postgres-types = { version = "0.2.3", features = ["derive"] }
 thiserror = "1.0.31"
 time = { version = "0.3.9", features = ["parsing"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tokio-postgres = { version = "0.7", features = ["with-chrono-0_4"], optional = true }
 
 [dev-dependencies]
 chrono = "0.4"
-postgres = { version = "0.19.3", features = ["with-chrono-0_4"] }
+clap = { version = "4", features = ["derive"] }
+similar-asserts = "1.4.2"
 tempfile = "3.3"
-
-[features]
-default = ["postgres"]
