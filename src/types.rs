@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use async_recursion::async_recursion;
-use heck::AsUpperCamelCase;
+use heck::{AsUpperCamelCase, AsSnakeCase};
 use tokio_postgres::types::{ToSql, Type as PgType};
 use tokio_postgres::Client;
 
@@ -156,15 +156,69 @@ impl fmt::Display for Type {
     }
 }
 
+#[derive(Debug)]
+pub enum TypeDefinition {
+    Composite(Composite),
+    Enum(Enum),
+}
+
+impl fmt::Display for TypeDefinition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Composite(inner) => f.write_fmt(format_args!("{inner}")),
+            Self::Enum(inner) => f.write_fmt(format_args!("{inner}")),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Composite {
+    pub name: String,
+    pub fields: Vec<(String, Type)>,
+}
+
+impl Composite {
+    pub(crate) async fn from_postgres(
+        name: &str,
+        client: &Client,
+    ) -> Result<Self, tokio_postgres::Error> {
+        let sql = "SELECT attname, atttypid
+            FROM pg_type, pg_attribute
+            WHERE typname = $1 AND pg_type.typrelid = pg_attribute.attrelid";
+
+        let mut fields = Vec::new();
+        for row in client.query(sql, &[&name]).await? {
+            let name = row.get::<_, &str>(0);
+            let r#type = Type::from_postgres_by_id(row.get(1), client).await?;
+            fields.push((name.to_owned(), r#type));
+        }
+
+        Ok(Self {
+            name: name.to_owned(),
+            fields,
+        })
+    }
+}
+
+impl fmt::Display for Composite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("struct {} {{\n", AsUpperCamelCase(&self.name)))?;
+        for (name, ty) in &self.fields {
+            f.write_fmt(format_args!("    {}: {ty},\n", AsSnakeCase(&name)))?;
+        }
+
+        f.write_str("}\n")
+    }
+}
+
 #[derive(Debug, PartialEq)]
-pub struct PgEnum {
+pub struct Enum {
     name: String,
     variants: Vec<String>,
 }
 
-impl PgEnum {
-    async fn from_postgres(
-        id: u32,
+impl Enum {
+    pub(crate) async fn from_postgres(
         name: &str,
         client: &Client,
     ) -> Result<Self, tokio_postgres::Error> {
@@ -175,11 +229,11 @@ impl PgEnum {
 
         let sql = r#"
             SELECT enumlabel
-            FROM pg_catalog.pg_enum
-            WHERE enumtypid = $1
+            FROM pg_catalog.pg_enum, pg_catalog.pg_type
+            WHERE pg_type.typname = $1 AND pg_type.oid = enumtypid
             ORDER BY enumsortorder ASC
         "#;
-        for row in client.query(sql, &[&id]).await? {
+        for row in client.query(sql, &[&name]).await? {
             let label = row.get::<_, &str>(0);
             new.variants.push(label.to_owned());
         }
@@ -188,11 +242,11 @@ impl PgEnum {
     }
 }
 
-impl fmt::Display for PgEnum {
+impl fmt::Display for Enum {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_fmt(format_args!("enum {} {{\n", AsUpperCamelCase(&self.name)))?;
         for variant in &self.variants {
-            f.write_fmt(format_args!("    {},", AsUpperCamelCase(&variant)))?;
+            f.write_fmt(format_args!("    {},\n", AsUpperCamelCase(&variant)))?;
         }
 
         f.write_str("}\n")
