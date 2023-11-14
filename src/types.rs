@@ -11,7 +11,7 @@ pub enum Type {
     Array(Box<Type>),
     Builtin(PgType),
     Composite(CompositeRef),
-    Enum(PgEnum),
+    Enum(EnumRef),
     Vector,
 }
 
@@ -64,7 +64,9 @@ impl Type {
                 }))
             }
             // enum: 'e' is 101 in ASCII
-            101 => Self::Enum(PgEnum::from_postgres(row.get(0), row.get(1), client).await?),
+            101 => Self::Enum(EnumRef {
+                name: row.get::<_, &str>(1).to_owned(),
+            }),
             ty => todo!(
                 "unknown Postgres type {ty:?} (from name {:?})",
                 row.get::<_, &str>(1)
@@ -77,10 +79,15 @@ impl Type {
         match self {
             Builtin(
                 PgType::BOOL
+                | PgType::FLOAT4
+                | PgType::FLOAT8
                 | PgType::TIMESTAMP
                 | PgType::TIMESTAMPTZ
                 | PgType::INT8
-                | PgType::INT4,
+                | PgType::INT4
+                | PgType::INT2
+                | PgType::INET
+                | PgType::INTERVAL,
             ) => true,
             Builtin(PgType::TEXT | PgType::TEXT_ARRAY | PgType::BYTEA | PgType::BYTEA_ARRAY) => {
                 false
@@ -124,17 +131,27 @@ impl fmt::Display for Type {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         use Type::*;
         match self {
+            Array(inner) => fmt.write_fmt(format_args!("Vec<{inner}>")),
             Builtin(PgType::BOOL) => write!(fmt, "bool"),
             Builtin(PgType::BYTEA) => write!(fmt, "Vec<u8>"),
             Builtin(PgType::BYTEA_ARRAY) => write!(fmt, "Vec<Vec<u8>>"),
+            Builtin(PgType::FLOAT4) => write!(fmt, "f32"),
+            Builtin(PgType::FLOAT8) => write!(fmt, "f64"),
+            Builtin(PgType::INET) => write!(fmt, "std::net::IpAddr"),
+            Builtin(PgType::INT2) => write!(fmt, "i16"),
             Builtin(PgType::INT4) => write!(fmt, "i32"),
             Builtin(PgType::INT8) => write!(fmt, "i64"),
+            Builtin(PgType::INTERVAL) => write!(fmt, "PgInterval"),
+            Builtin(PgType::JSONB) => write!(fmt, "JsonB"),
             Builtin(PgType::TEXT) => write!(fmt, "String"),
             Builtin(PgType::TEXT_ARRAY) => write!(fmt, "Vec<String>"),
             Builtin(PgType::TIMESTAMP) => write!(fmt, "chrono::naive::NaiveDateTime"),
             Builtin(PgType::TIMESTAMPTZ) => write!(fmt, "chrono::DateTime<chrono::Utc>"),
+            Builtin(PgType::UUID) => write!(fmt, "uuid::Uuid"),
+            Builtin(inner) => todo!("fmt::Display for {inner:?}"),
             Composite(inner) => write!(fmt, "{}", AsUpperCamelCase(&inner.name)),
-            ty => todo!("fmt::Display for {ty:?}"),
+            Enum(inner) => write!(fmt, "{inner}"),
+            Vector => write!(fmt, "pgvector::Vector"),
         }
     }
 }
@@ -197,21 +214,26 @@ impl fmt::Display for TypeAsRef<'_> {
 
         use Type::*;
         match val {
-            Array(inner) => fmt.write_fmt(format_args!("Vec<{inner}>")),
-            Builtin(PgType::INT8) => write!(fmt, "i64"),
-            Builtin(PgType::INT4) => write!(fmt, "i32"),
+            Array(inner) => fmt.write_fmt(format_args!(
+                "&{}{}{}[{}]",
+                lt_prefix,
+                lt_name,
+                lt_suffix,
+                TypeAsRef {
+                    lifetime: *lifetime,
+                    val: inner
+                }
+            )),
             Builtin(PgType::TEXT) => write!(fmt, "&{}{}{}str", lt_prefix, lt_name, lt_suffix),
             Builtin(PgType::TEXT_ARRAY) => {
-                write!(fmt, "Vec<&{}{}{}str>", lt_prefix, lt_name, lt_suffix)
+                write!(fmt, "[&{}{}{}str]", lt_prefix, lt_name, lt_suffix)
             }
-            Builtin(PgType::BYTEA) => write!(fmt, "Vec<u8>"),
+            Builtin(PgType::BYTEA) => write!(fmt, "&[u8]"),
             Builtin(PgType::BYTEA_ARRAY) => {
-                write!(fmt, "Vec<&{}{}{}[u8]>", lt_prefix, lt_name, lt_suffix)
+                write!(fmt, "&{}{}{}[u8]>", lt_prefix, lt_name, lt_suffix)
             }
-            Builtin(PgType::BOOL) => write!(fmt, "bool"),
-            Builtin(PgType::TIMESTAMP) => write!(fmt, "chrono::naive::NaiveDateTime",),
-            Builtin(PgType::TIMESTAMPTZ) => write!(fmt, "chrono::DateTime<chrono::Utc>",),
-            Builtin(inner) => todo!("no Display for {inner:?}"),
+            Builtin(PgType::JSONB) => write!(fmt, "&impl Serialize"),
+            Builtin(_) => write!(fmt, "{val}"),
             Composite(inner) => write!(
                 fmt,
                 "&{}{}{}{}",
@@ -228,5 +250,22 @@ impl fmt::Display for TypeAsRef<'_> {
 
 #[derive(Debug, PartialEq)]
 pub struct CompositeRef {
-    name: String,
+    pub(crate) name: String,
+}
+
+impl fmt::Display for CompositeRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("{}", &AsUpperCamelCase(&self.name)))
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct EnumRef {
+    pub(crate) name: String,
+}
+
+impl fmt::Display for EnumRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_fmt(format_args!("{}", &AsUpperCamelCase(&self.name)))
+    }
 }

@@ -37,6 +37,7 @@ impl fmt::Display for Schema {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for table in &self.tables {
             f.write_fmt(format_args!("{table}"))?;
+            f.write_str("\n")?;
         }
 
         Ok(())
